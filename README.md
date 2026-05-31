@@ -105,6 +105,18 @@ Supported benchmarks: `vstar`, `zoombench`, `hrbench-4k`, `hrbench-8k`, `mme-rea
 
 The evaluation script runs inference via the OpenAI-compatible API. Judge configuration can be set via `JUDGE_API_BASE` / `JUDGE_MODEL_PATH` environment variables.
 
+To evaluate Qwen3.5 models as baselines, set `ENABLE_THINKING=False` to run in non-thinking mode, for example:
+
+```bash
+API_BASE="http://localhost:8000/v1/" \
+OPENAI_MODEL_ID="Qwen3.5-4B" \
+ENABLE_THINKING=False \
+JUDGE_API_BASE="YOUR_JUDGE_API_BASE" \
+JUDGE_MODEL="YOUR_JUDGE_MODEL_NAME" \
+BENCHMARK="vstar,zoombench,hrbench-4k,hrbench-8k,mme-realworld,mme-realworld-cn" \
+bash eval/run_eval.sh
+```
+
 ## Project Structure
 
 ```

@@ -29,6 +29,7 @@ MAX_TOKENS="${MAX_TOKENS:-32768}"
 OUT_DIR="${OUT_DIR:-model_answer}"
 MAX_RETRIES="${MAX_RETRIES:-3}"
 PARALLEL_WORKERS="${PARALLEL_WORKERS:-256}"
+ENABLE_THINKING="${ENABLE_THINKING:-}"
 
 JUDGE_API_BASE="${JUDGE_API_BASE:-}"
 JUDGE_API_KEY="${JUDGE_API_KEY:-}"
@@ -74,18 +75,22 @@ run_single_benchmark() {
 
   # [2/4] Inference
   echo "[2/4] Running inference..."
-  python3 infer.py \
-    --benchmark "${bench}" \
-    --benchmark_json "${SCRIPT_DIR}/${bench_json}" \
-    --out_dir "${OUT_DIR}" \
-    --model_name "${model_tag}" \
-    --seed "${SEED}" \
-    --api_base "${API_BASE}" \
-    --api_key "${API_KEY}" \
-    --model_id "${OPENAI_MODEL_ID}" \
-    --max_tokens "${MAX_TOKENS}" \
-    --max_retries "${MAX_RETRIES}" \
+  local -a INFER_ARGS=(
+    --benchmark "${bench}"
+    --benchmark_json "${SCRIPT_DIR}/${bench_json}"
+    --out_dir "${OUT_DIR}"
+    --model_name "${model_tag}"
+    --seed "${SEED}"
+    --api_base "${API_BASE}"
+    --api_key "${API_KEY}"
+    --model_id "${OPENAI_MODEL_ID}"
+    --max_tokens "${MAX_TOKENS}"
+    --max_retries "${MAX_RETRIES}"
     --parallel_workers "${PARALLEL_WORKERS}"
+  )
+  [[ -n "${ENABLE_THINKING}" ]] && INFER_ARGS+=(--enable_thinking "${ENABLE_THINKING}")
+
+  python3 infer.py "${INFER_ARGS[@]}"
 
   # [3/4] Judge
   echo "[3/4] Running judge..."

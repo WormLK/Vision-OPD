@@ -95,6 +95,9 @@ def rewrite_output(path, ordered_uids, record_map):
 def normalize_model_answer(model_answer_raw):
     if not isinstance(model_answer_raw, str):
         return model_answer_raw
+    think_end = model_answer_raw.rfind("</think>")
+    if think_end != -1:
+        model_answer_raw = model_answer_raw[think_end + len("</think>"):].strip()
     start = model_answer_raw.rfind("<answer>")
     end = model_answer_raw.find("</answer>", start + len("<answer>")) if start != -1 else -1
     if start != -1 and end != -1 and end > start:
@@ -138,6 +141,8 @@ def main():
     parser.add_argument("--max_tokens", default=4096, type=int)
     parser.add_argument("--max_retries", default=3, type=int)
     parser.add_argument("--parallel_workers", default=32, type=int)
+    parser.add_argument("--enable_thinking", type=str, default=None, choices=["True", "False"],
+                        help="Set enable_thinking via chat_template_kwargs (True=on, False=off)")
     args = parser.parse_args()
 
     benchmark = args.benchmark
@@ -208,11 +213,17 @@ def main():
         client = get_client()
         for attempt in range(1, args.max_retries + 1):
             try:
+                extra_kwargs = {}
+                if args.enable_thinking is not None:
+                    extra_kwargs["extra_body"] = {
+                        "chat_template_kwargs": {"enable_thinking": args.enable_thinking == "True"}
+                    }
                 resp = client.chat.completions.create(
                     model=args.model_id,
                     messages=messages,
                     max_tokens=args.max_tokens,
                     temperature=0,
+                    **extra_kwargs,
                 )
                 raw_model_answer = (resp.choices[0].message.content or "").strip()
                 model_answer = normalize_model_answer(raw_model_answer)
