@@ -78,7 +78,7 @@ bash eval/run_eval.sh
 
 ## Training
 
-### 2. Prepare Training Data
+### 1. Prepare Training Data
 
 Download and preprocess the [Vision-OPD-6K](https://huggingface.co/datasets/yuanqianhao/Vision-OPD-6K) dataset:
 
