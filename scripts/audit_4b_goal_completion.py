@@ -188,6 +188,16 @@ def validate_judge_context(path: Path) -> None:
         raise RuntimeError("official GPT-OSS launch does not use JUDGE_CONTEXT_LEN")
 
 
+def validate_judge_runtime_log(path: Path) -> None:
+    if not path.is_file():
+        raise RuntimeError(f"missing GPT-OSS runtime log: {path}")
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "Using max model len 65536" not in text or "max_seq_len=65536" not in text:
+        raise RuntimeError(f"GPT-OSS runtime did not use 65,536-token context: {path}")
+    if "Using max model len 8192" in text or "max_seq_len=8192" in text:
+        raise RuntimeError(f"GPT-OSS runtime log mixes excluded 8,192-token context: {path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", type=Path, required=True)
@@ -243,6 +253,7 @@ def main() -> None:
 
     model_scores: dict[str, list[float]] = {}
     for model in (BASELINE_MODEL, OPD_MODEL):
+        validate_judge_runtime_log(official / "logs" / f"vllm_{model}_judge.log")
         run(
             [
                 sys.executable,
