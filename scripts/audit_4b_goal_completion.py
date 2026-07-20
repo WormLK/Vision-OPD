@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import re
 import subprocess
@@ -159,6 +160,22 @@ def validate_vtc_config(
         raise RuntimeError(f"VTC config mismatch {path}: tool list differs from the locked track")
 
 
+def validate_vtc_template_alignment(local_path: Path, reference_path: Path) -> None:
+    local = yaml.safe_load(local_path.read_text(encoding="utf-8"))
+    reference = yaml.safe_load(reference_path.read_text(encoding="utf-8"))
+    normalized = copy.deepcopy(local)
+    normalized["input"]["tsv_path"] = reference["input"]["tsv_path"]
+    if "data_dir" not in reference["input"]:
+        normalized["input"].pop("data_dir", None)
+    normalized["output"]["results_dir"] = reference["output"]["results_dir"]
+    normalized["llm"]["model"] = reference["llm"]["model"]
+    normalized["llm"]["model_server"] = reference["llm"]["model_server"]
+    if normalized != reference:
+        raise RuntimeError(
+            f"VTC config differs from reference outside the local path/model allowlist: {local_path}"
+        )
+
+
 def validate_vtc_runner(path: Path) -> None:
     if not path.is_file():
         raise RuntimeError(f"missing VTC runner: {path}")
@@ -285,6 +302,13 @@ def main() -> None:
         expected_tsv=vtc_data / "VTC-Bench_GTToolChain.absolute.tsv",
         expected_results=vtc / "runs/vtc_vision_opd_4b_step65_interface",
         expected_tools=INTERFACE_TOOLS,
+    )
+    validate_vtc_template_alignment(
+        code_config, vtc / "eval/eval_config/qwen3_vl_30B_A3B_Thinking_code.yaml"
+    )
+    validate_vtc_template_alignment(
+        interface_config,
+        vtc / "eval/eval_config/qwen3_vl_30B_A3B_Thinking_interface.yaml",
     )
     validate_vtc_runner(vtc / "scripts/run_vision_opd_4b_vtc_bench.sh")
     eval_root = vtc / "eval/VLMEvalKit/outputs/VTC_Bench"
