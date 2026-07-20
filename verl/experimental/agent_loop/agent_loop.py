@@ -14,6 +14,7 @@
 import asyncio
 import heapq
 import logging
+import math
 import os
 import random
 from abc import ABC, abstractmethod
@@ -175,8 +176,8 @@ class _InternalAgentLoopOutput(AgentLoopOutput):
     """Padded log probabilities for the response tokens."""
     routed_experts: Optional[torch.Tensor] = None
     """Padded routed experts for the total tokens."""
-    multi_modal_inputs: Optional[dict[str, torch.Tensor]] = None
-    """Multi-modal inputs for processors (e.g., pixel_values, image_grid_thw)."""
+    multi_modal_inputs: Optional[dict[str, Any]] = None
+    """Multi-modal processor inputs or deferred image references used to rebuild them."""
     extra_fields: dict[str, Any] = {}
     """Extra fields for dynamic addition."""
 
@@ -686,7 +687,11 @@ class AgentLoopWorker:
 
             routed_experts[:, start_pos:end_pos] = experts_tensor.unsqueeze(0)
 
-        multi_modal_inputs = self._compute_multi_modal_inputs(output, input_ids)
+        multi_modal_inputs = self._compute_multi_modal_inputs(
+            output,
+            input_ids,
+            raw_prompt=kwargs.get("raw_prompt"),
+        )
         position_ids = self._compute_position_ids(input_ids, attention_mask, multi_modal_inputs)
         await self._compute_score(
             output,
@@ -715,7 +720,63 @@ class AgentLoopWorker:
             extra_fields=output.extra_fields,
         )
 
-    def _compute_multi_modal_inputs(self, output, input_ids) -> dict[str, torch.Tensor]:
+    @staticmethod
+    def _raw_prompt_image_refs(raw_prompt: Optional[list[dict]]) -> list[Any]:
+        refs = []
+        for message in raw_prompt or []:
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for item in content:
+                if not isinstance(item, dict) or item.get("type") != "image":
+                    continue
+                if item.get("path"):
+                    refs.append({"path": item["path"]})
+                elif isinstance(item.get("image"), str):
+                    refs.append({"path": item["image"]})
+                elif item.get("bytes") is not None:
+                    refs.append({"bytes": item["bytes"]})
+                else:
+                    refs.append(None)
+        return refs
+
+    def _deferred_image_refs(self, images: list[Any], raw_prompt: Optional[list[dict]]) -> list[Any]:
+        original_refs = self._raw_prompt_image_refs(raw_prompt)
+        cache_dir = self.config.actor_rollout_ref.rollout.agent.get("multimodal_cache_dir", None)
+        refs = []
+        for index, image in enumerate(images or []):
+            if index < len(original_refs) and original_refs[index] is not None:
+                refs.append({**original_refs[index], "deferred_processing": "qwen_fetch"})
+                continue
+            if isinstance(image, str):
+                refs.append({"path": image, "deferred_processing": "qwen_fetch"})
+                continue
+            if isinstance(image, dict) and (image.get("path") or image.get("bytes") is not None):
+                refs.append(
+                    {
+                        **{key: image[key] for key in ("path", "bytes") if image.get(key) is not None},
+                        "deferred_processing": "qwen_fetch",
+                    }
+                )
+                continue
+            if not isinstance(image, Image.Image):
+                raise TypeError(f"Unsupported deferred rollout image type: {type(image)}")
+            if not cache_dir:
+                raise ValueError("agent.multimodal_cache_dir is required for deferred tool-generated images")
+            os.makedirs(cache_dir, exist_ok=True)
+            path = os.path.join(cache_dir, f"{uuid4().hex}.png")
+            tmp_path = f"{path}.tmp"
+            image.convert("RGB").save(tmp_path, format="PNG")
+            os.replace(tmp_path, path)
+            refs.append({"path": path, "deferred_processing": "processor_raw"})
+        return refs
+
+    def _compute_multi_modal_inputs(
+        self,
+        output,
+        input_ids,
+        raw_prompt: Optional[list[dict]] = None,
+    ) -> dict[str, Any]:
         """Compute multi-modal inputs with image and video."""
         multi_modal_inputs = {}
         if self.processor is None:
@@ -744,6 +805,34 @@ class AgentLoopWorker:
         # We must use dict(multi_modal_inputs) to convert BatchFeature values to a new dict
         # because np.array() only keeps the keys for BatchFeature.
         multi_modal_inputs = dict(multi_modal_inputs.convert_to_tensors("pt"))
+        if self.config.actor_rollout_ref.rollout.agent.get("defer_multimodal_processing", False):
+            deferred_images = self._deferred_image_refs(images or [], raw_prompt)
+            multi_modal_inputs = {
+                key: value
+                for key, value in multi_modal_inputs.items()
+                if not (torch.is_tensor(value) and value.is_floating_point())
+            }
+            multi_modal_inputs["deferred_images"] = deferred_images
+            image_grid_thw = multi_modal_inputs.get("image_grid_thw")
+            if image_grid_thw is not None:
+                multi_modal_inputs["images_seqlens"] = torch.repeat_interleave(
+                    image_grid_thw[:, 1] * image_grid_thw[:, 2], image_grid_thw[:, 0]
+                )
+            return multi_modal_inputs
+        storage_dtype_name = self.config.actor_rollout_ref.rollout.agent.get(
+            "multimodal_storage_dtype", None
+        )
+        if storage_dtype_name is not None:
+            storage_dtype = getattr(torch, str(storage_dtype_name), None)
+            if storage_dtype not in {torch.float16, torch.bfloat16, torch.float32}:
+                raise ValueError(
+                    "agent.multimodal_storage_dtype must be one of float16, bfloat16, float32, "
+                    f"got {storage_dtype_name}"
+                )
+            multi_modal_inputs = {
+                key: value.to(dtype=storage_dtype) if torch.is_tensor(value) and value.is_floating_point() else value
+                for key, value in multi_modal_inputs.items()
+            }
         image_grid_thw = multi_modal_inputs.get("image_grid_thw")
         if image_grid_thw is not None:
             images_seqlens = torch.repeat_interleave(image_grid_thw[:, 1] * image_grid_thw[:, 2], image_grid_thw[:, 0])
@@ -1072,13 +1161,40 @@ class AgentLoopManager:
         if self.reward_model_manager:
             self.reward_model_manager.wake_up()
 
-        chunkes = prompts.chunk(len(self.agent_loop_workers))
-        outputs = ray.get(
-            [
-                worker.generate_sequences.remote(chunk)
-                for worker, chunk in zip(self.agent_loop_workers, chunkes, strict=True)
-            ]
-        )
+        dispatch_batch_size = self.config.actor_rollout_ref.rollout.agent.get("dispatch_batch_size", None)
+        if dispatch_batch_size is None:
+            dispatch_batch_size = len(prompts)
+        dispatch_batch_size = int(dispatch_batch_size)
+        if dispatch_batch_size <= 0:
+            raise ValueError(f"agent.dispatch_batch_size must be positive, got {dispatch_batch_size}")
+
+        # Large multimodal batches can retain hundreds of decoded images and processor
+        # intermediates in every worker. Dispatch bounded waves while preserving the
+        # original sample order and concatenating the complete on-policy batch before
+        # the trainer performs its single optimizer update.
+        outputs = []
+        dispatch_batches = prompts.split(dispatch_batch_size)
+        for wave_index, dispatch_batch in enumerate(dispatch_batches, start=1):
+            print(
+                f"AgentLoopManager: dispatch wave {wave_index}/{len(dispatch_batches)} "
+                f"with {len(dispatch_batch)} trajectories",
+                flush=True,
+            )
+            worker_chunks = dispatch_batch.split(
+                max(1, math.ceil(len(dispatch_batch) / len(self.agent_loop_workers)))
+            )
+            wave_outputs = ray.get(
+                [
+                    worker.generate_sequences.remote(chunk)
+                    for worker, chunk in zip(self.agent_loop_workers, worker_chunks, strict=False)
+                ]
+            )
+            outputs.extend(wave_outputs)
+            print(
+                f"AgentLoopManager: completed wave {wave_index}/{len(dispatch_batches)}; "
+                f"retained {sum(len(output) for output in outputs)} trajectories",
+                flush=True,
+            )
         outputs = self._align_output_prompt_length(outputs)
         output = DataProto.concat(outputs)
         # Fix for Issue #4147: Always call sleep() to ensure proper cleanup

@@ -13,8 +13,10 @@ This script:
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
 from typing import Any
 
 import datasets
@@ -36,23 +38,54 @@ def parse_args() -> argparse.Namespace:
 
 def download_dataset(repo_id: str, data_dir: str) -> None:
     print(f"Downloading dataset from {repo_id} ...")
-    cmd = ["huggingface-cli", "download", "--repo-type", "dataset", repo_id, "--local-dir", data_dir]
+
+    hf_cmd = shutil.which("hf")
+    if hf_cmd is None:
+        print(
+            "Error: `hf` command not found. Please install/upgrade `huggingface_hub` "
+            "and make sure `hf` is in PATH.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    cmd = [
+        hf_cmd,
+        "download",
+        "--repo-type",
+        "dataset",
+        repo_id,
+        "--local-dir",
+        data_dir,
+    ]
     subprocess.run(cmd, check=True)
 
     images_dir = os.path.join(data_dir, "images")
     teacher_dir = os.path.join(data_dir, "teacher_images")
 
-    tar_files = sorted(f for f in os.listdir(images_dir) if f.startswith("images.tar.gz"))
+    tar_files = sorted(
+        f for f in os.listdir(images_dir)
+        if f.startswith("images.tar.gz")
+    )
     if tar_files:
         print("Extracting student images ...")
-        subprocess.run(f"cat {' '.join(tar_files)} | tar -xf - -C .", shell=True, cwd=images_dir, check=True)
+        merged_tar = os.path.join(images_dir, "images_merged.tar")
+        with open(merged_tar, "wb") as outfile:
+            for fname in tar_files:
+                with open(os.path.join(images_dir, fname), "rb") as infile:
+                    shutil.copyfileobj(infile, outfile)
+
+        with tarfile.open(merged_tar, "r:") as tar:
+            tar.extractall(path=images_dir, filter="data")
+
+        os.remove(merged_tar)
         for f in tar_files:
             os.remove(os.path.join(images_dir, f))
 
     teacher_tar = os.path.join(teacher_dir, "teacher_images.tar.gz")
     if os.path.exists(teacher_tar):
         print("Extracting teacher images ...")
-        subprocess.run(["tar", "-xf", "teacher_images.tar.gz", "-C", "."], cwd=teacher_dir, check=True)
+        with tarfile.open(teacher_tar, "r:gz") as tar:
+            tar.extractall(path=teacher_dir, filter="data")
         os.remove(teacher_tar)
 
     print("Image extraction complete.")

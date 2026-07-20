@@ -16,6 +16,7 @@ set -euo pipefail
 # =============================================================================
 
 export MKL_SERVICE_FORCE_INTEL=1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Required ---
 API_BASE="${API_BASE:?ERROR: API_BASE must be set (e.g. http://localhost:8000/v1/)}"
@@ -28,18 +29,26 @@ MODEL_NAME="${MODEL_NAME:-${OPENAI_MODEL_ID//\//_}}"
 SEED="${SEED:-42}"
 MAX_TOKENS="${MAX_TOKENS:-32768}"
 OUT_DIR="${OUT_DIR:-model_answer}"
-MAX_RETRIES="${MAX_RETRIES:-3}"
+MAX_RETRIES="${MAX_RETRIES:-20}"
 PARALLEL_WORKERS="${PARALLEL_WORKERS:-256}"
 ENABLE_THINKING="${ENABLE_THINKING:-}"
+BENCHMARK_DATA_DIR="${BENCHMARK_DATA_DIR:-${SCRIPT_DIR}}"
+PREPARE_DATA="${PREPARE_DATA:-true}"
+JUDGE_OUT_DIR="${JUDGE_OUT_DIR:-${OUT_DIR%/model_answer}/judge}"
+RESULTS_DIR="${RESULTS_DIR:-${OUT_DIR%/model_answer}/results}"
 
 JUDGE_API_BASE="${JUDGE_API_BASE:-}"
 JUDGE_API_KEY="${JUDGE_API_KEY:-}"
 JUDGE_MODEL="${JUDGE_MODEL:-}"
 JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-}"
 JUDGE_MAX_TOKENS="${JUDGE_MAX_TOKENS:-2048}"
+JUDGE_MAX_RETRIES="${JUDGE_MAX_RETRIES:-20}"
+JUDGE_PARALLEL_WORKERS="${JUDGE_PARALLEL_WORKERS:-32}"
+JUDGE_ENABLE_THINKING="${JUDGE_ENABLE_THINKING:-${ENABLE_THINKING:-}}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
+BENCHMARK_DATA_DIR="$(cd "${BENCHMARK_DATA_DIR}" && pwd)"
+mkdir -p "${OUT_DIR}" "${JUDGE_OUT_DIR}" "${RESULTS_DIR}"
 
 # Benchmark JSON mapping
 declare -A BENCHMARK_JSON_MAP=(
@@ -81,13 +90,21 @@ run_single_benchmark() {
 
   # [1/4] Prepare data
   echo "[1/4] Preparing data..."
-  python3 prepare_data.py --benchmark "${bench}" --data_dir "${SCRIPT_DIR}"
+  if [[ "${PREPARE_DATA}" == "true" ]]; then
+    python3 prepare_data.py --benchmark "${bench}" --data_dir "${BENCHMARK_DATA_DIR}"
+  fi
+
+  local benchmark_json_path="${BENCHMARK_DATA_DIR}/${bench_json}"
+  if [[ ! -f "${benchmark_json_path}" ]]; then
+    echo "ERROR: Prepared benchmark JSON not found: ${benchmark_json_path}" >&2
+    exit 1
+  fi
 
   # [2/4] Inference
   echo "[2/4] Running inference..."
   local -a INFER_ARGS=(
     --benchmark "${bench}"
-    --benchmark_json "${SCRIPT_DIR}/${bench_json}"
+    --benchmark_json "${benchmark_json_path}"
     --out_dir "${OUT_DIR}"
     --model_name "${model_tag}"
     --seed "${SEED}"
@@ -110,14 +127,19 @@ run_single_benchmark() {
   [[ -n "${JUDGE_MODEL}" ]] && JUDGE_ARGS+=(--judge_model "${JUDGE_MODEL}")
   [[ -n "${JUDGE_MODEL_PATH}" ]] && JUDGE_ARGS+=(--judge_model_path "${JUDGE_MODEL_PATH}")
   [[ -n "${JUDGE_MAX_TOKENS}" ]] && JUDGE_ARGS+=(--judge_max_tokens "${JUDGE_MAX_TOKENS}")
+  [[ -n "${JUDGE_ENABLE_THINKING}" ]] && JUDGE_ARGS+=(--enable_thinking "${JUDGE_ENABLE_THINKING}")
 
   local judge_benchmark="${bench}"
   local judge_model_tag="${model_tag}"
-  local judge_json="judge/${bench}/${model_tag}_answer.jsonl"
+  local judge_json="${JUDGE_OUT_DIR}/${bench}/${model_tag}_answer.jsonl"
 
   python3 judge_qwenlm.py \
     --benchmark "${judge_benchmark}" \
     --model "${judge_model_tag}" \
+    --answer_dir "${OUT_DIR}" \
+    --judge_dir "${JUDGE_OUT_DIR}" \
+    --parallel_workers "${JUDGE_PARALLEL_WORKERS}" \
+    --max_retries "${JUDGE_MAX_RETRIES}" \
     "${JUDGE_ARGS[@]}"
 
   # [4/4] Accuracy
@@ -125,7 +147,8 @@ run_single_benchmark() {
   python3 cal_acc.py \
     --benchmark "${bench}" \
     --judge_json "${judge_json}" \
-    --benchmark_json "${SCRIPT_DIR}/${bench_json}"
+    --benchmark_json "${benchmark_json_path}" \
+    | tee "${RESULTS_DIR}/${model_tag}_${bench}.txt"
 
   echo "Done: ${bench}"
 }

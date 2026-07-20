@@ -1,0 +1,12 @@
+[
+  {"slug": "vstar", "label": "Vstar", "manifest": "vstar.json", "count": 191},
+  {"slug": "zoombench", "label": "ZoomBench", "manifest": "zoombench.json", "count": 845},
+  {"slug": "hrbench-4k", "label": "HR-Bench-4K", "manifest": "hr_bench_4k.json", "count": 800},
+  {"slug": "hrbench-8k", "label": "HR-Bench-8K", "manifest": "hr_bench_8k.json", "count": 800},
+  {"slug": "mme-realworld", "label": "MME-RealWorld-EN", "manifest": "MME_RealWorld.json", "count": 23609},
+  {"slug": "mme-realworld-cn", "label": "MME-RealWorld-CN", "manifest": "MME_RealWorld_CN.json", "count": 5462},
+  {"slug": "mmstar", "label": "MMStar", "manifest": "mmstar.json", "count": 1500},
+  {"slug": "pope", "label": "POPE-Test", "manifest": "POPE.json", "count": 9000},
+  {"slug": "cv-bench", "label": "CV-Bench", "manifest": "cv_bench.json", "count": 2638},
+  {"slug": "mmvp", "label": "MMVP", "manifest": "mmvp.json", "count": 300}
+]

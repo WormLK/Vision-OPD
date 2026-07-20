@@ -1,0 +1,45 @@
+# Python and build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Local environments and editor state
+.venv/
+.idea/
+.vscode/
+.env
+.env.*
+*.pem
+
+# Training data and large runtime artifacts
+/data/
+/datasets/
+/checkpoints/
+/merged_models/
+/rollouts/
+/tensorboard_log/
+/logs/
+/outputs/
+
+# Benchmark datasets and raw model/judge outputs are local-only. Keep the
+# frozen evaluator, provenance, compact score files, and benchmark contract.
+/benchmark/*
+!/benchmark/official_reproduction_20260717/
+/benchmark/official_reproduction_20260717/*
+!/benchmark/official_reproduction_20260717/source/
+/benchmark/official_reproduction_20260717/source/*
+!/benchmark/official_reproduction_20260717/source/eval/
+/benchmark/official_reproduction_20260717/source/eval/*
+!/benchmark/official_reproduction_20260717/source/eval/*.py
+!/benchmark/official_reproduction_20260717/source/eval/*.sh
+!/benchmark/official_reproduction_20260717/provenance/
+!/benchmark/official_reproduction_20260717/provenance/**
+!/benchmark/official_reproduction_20260717/results/
+!/benchmark/official_reproduction_20260717/results/*.txt
+!/benchmark/official_reproduction_20260717/goal_4b_benchmarks.json
+!/benchmark/official_reproduction_20260717/source_commit.txt
+
+# Generated evaluation caches
+/eval/__pycache__/
+/scripts/__pycache__/

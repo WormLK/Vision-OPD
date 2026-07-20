@@ -131,6 +131,83 @@ class DataParallelPPOActor(BasePPOActor):
                 f"{self.use_fused_kernels=} or {self.use_prefix_grouper=} for now."
             )
 
+    def _materialize_deferred_multi_modal_inputs(self, batch_data, input_ids):
+        if not any(
+            isinstance(getattr(inputs, "data", inputs), dict)
+            and "deferred_images" in getattr(inputs, "data", inputs)
+            for inputs in batch_data
+        ):
+            return batch_data
+        if not hasattr(self, "processor"):
+            raise RuntimeError("Deferred multimodal processing requires actor.processor")
+
+        from verl.utils.dataset.vision_utils import process_image
+
+        def load_deferred_image(ref):
+            if not isinstance(ref, dict) or ref.get("deferred_processing") != "processor_raw":
+                return process_image(ref, image_patch_size=patch_size)
+            from io import BytesIO
+
+            from PIL import Image
+
+            if ref.get("bytes") is not None:
+                with Image.open(BytesIO(ref["bytes"])) as pil_image:
+                    return pil_image.convert("RGB")
+            image = ref.get("image")
+            path = ref.get("path", image)
+            if path is not None:
+                with Image.open(path) as pil_image:
+                    return pil_image.convert("RGB")
+            if isinstance(image, Image.Image):
+                return image.convert("RGB")
+            raise TypeError(f"Unsupported processor_raw deferred image reference: {type(ref)}")
+
+        materialized = []
+        patch_size = self.processor.image_processor.patch_size
+        for row_index, raw_inputs in enumerate(batch_data):
+            inputs = getattr(raw_inputs, "data", raw_inputs)
+            if not isinstance(inputs, dict) or "deferred_images" not in inputs:
+                materialized.append(inputs)
+                continue
+            images = [load_deferred_image(ref) for ref in inputs["deferred_images"]]
+            current_text = self.tokenizer.decode(input_ids[row_index].detach().cpu(), skip_special_tokens=True)
+            rebuilt = dict(
+                self.processor(
+                    text=[current_text],
+                    images=images or None,
+                    videos=None,
+                    return_tensors="pt",
+                    do_sample_frames=False,
+                )
+            )
+            rebuilt.pop("input_ids", None)
+            rebuilt.pop("attention_mask", None)
+            rebuilt.pop("mm_token_type_ids", None)
+            expected_grid = inputs.get("image_grid_thw")
+            actual_grid = rebuilt.get("image_grid_thw")
+            if expected_grid is not None and actual_grid is not None and not torch.equal(
+                expected_grid.cpu(), actual_grid.cpu()
+            ):
+                refs = [
+                    {
+                        "mode": ref.get("deferred_processing") if isinstance(ref, dict) else None,
+                        "path": ref.get("path") if isinstance(ref, dict) else None,
+                    }
+                    for ref in inputs["deferred_images"]
+                ]
+                raise ValueError(
+                    "Deferred image processing changed image_grid_thw: "
+                    f"row={row_index}, expected={expected_grid.cpu().tolist()}, "
+                    f"actual={actual_grid.cpu().tolist()}, refs={refs}"
+                )
+            materialized.append(
+                {
+                    key: value.to(device=input_ids.device) if torch.is_tensor(value) else value
+                    for key, value in rebuilt.items()
+                }
+            )
+        return materialized
+
     def _update_teacher(self) -> None:
         self_distillation_cfg = getattr(self.config, "self_distillation", None)
         loss_mode = self.config.policy_loss.get("loss_mode", "vanilla")
@@ -356,7 +433,11 @@ class DataParallelPPOActor(BasePPOActor):
         if "multi_modal_inputs" in micro_batch.keys():
             from verl.utils.model import extract_multi_modal_inputs
 
-            multi_modal_inputs = extract_multi_modal_inputs(micro_batch["multi_modal_inputs"])
+            batch_multi_modal_inputs = self._materialize_deferred_multi_modal_inputs(
+                micro_batch["multi_modal_inputs"],
+                micro_batch["input_ids"],
+            )
+            multi_modal_inputs = extract_multi_modal_inputs(batch_multi_modal_inputs)
 
         with torch.autocast(device_type=self.device_name, dtype=self.param_dtype):
             input_ids = micro_batch["input_ids"]

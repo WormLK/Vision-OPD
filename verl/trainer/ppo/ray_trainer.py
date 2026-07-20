@@ -746,6 +746,7 @@ class RayPPOTrainer:
                         {
                             "type": "image",
                             "image": self._normalize_teacher_image(teacher_images[image_offset]),
+                            "deferred_image": teacher_images[image_offset],
                         }
                     )
                     image_offset += 1
@@ -779,7 +780,13 @@ class RayPPOTrainer:
                             "Teacher image count is smaller than teacher_prompt placeholders: "
                             f"{len(normalized_images)=}, {image_offset=}"
                         )
-                    content_list.append({"type": "image", "image": normalized_images[image_offset]})
+                    content_list.append(
+                        {
+                            "type": "image",
+                            "image": normalized_images[image_offset],
+                            "deferred_image": teacher_images[image_offset],
+                        }
+                    )
                     image_offset += 1
                 else:
                     content_list.append({"type": "text", "text": segment})
@@ -838,6 +845,35 @@ class RayPPOTrainer:
                 elif "bytes" in item:
                     images.append(RayPPOTrainer._normalize_teacher_image({"bytes": item["bytes"]}))
         return images
+
+    @staticmethod
+    def _extract_deferred_images_from_messages(messages: list[dict]) -> list[Any]:
+        refs = []
+        for message in messages:
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for item in content:
+                if not isinstance(item, dict) or item.get("type") != "image":
+                    continue
+                ref = item.get("deferred_image")
+                if ref is None:
+                    if item.get("path"):
+                        ref = {"path": item["path"]}
+                    elif isinstance(item.get("image"), str):
+                        ref = {"path": item["image"]}
+                    elif item.get("bytes") is not None:
+                        ref = {"bytes": item["bytes"]}
+                    else:
+                        ref = item.get("image")
+                if isinstance(ref, dict):
+                    ref = {**ref, "deferred_processing": "processor_raw"}
+                elif isinstance(ref, str):
+                    ref = {"path": ref, "deferred_processing": "processor_raw"}
+                else:
+                    ref = {"image": ref, "deferred_processing": "processor_raw"}
+                refs.append(ref)
+        return refs
 
     @staticmethod
     def _teacher_images_available(teacher_images: Any) -> bool:
@@ -988,6 +1024,7 @@ class RayPPOTrainer:
         teacher_multi_modal_inputs = None
         if self.processor is not None:
             prompt_images = self._extract_images_from_messages(messages)
+            deferred_images = self._extract_deferred_images_from_messages(messages)
             model_inputs = dict(
                 self.processor(
                     text=[raw_prompt],
@@ -1001,6 +1038,29 @@ class RayPPOTrainer:
             teacher_multi_modal_inputs = model_inputs.copy()
             prompt_input_ids = teacher_multi_modal_inputs.pop("input_ids").squeeze(0)
             prompt_attention_mask = teacher_multi_modal_inputs.pop("attention_mask").squeeze(0)
+            if self.config.actor_rollout_ref.rollout.agent.get("defer_multimodal_processing", False):
+                teacher_multi_modal_inputs = {
+                    key: value
+                    for key, value in teacher_multi_modal_inputs.items()
+                    if not (torch.is_tensor(value) and value.is_floating_point())
+                }
+                teacher_multi_modal_inputs["deferred_images"] = deferred_images
+            storage_dtype_name = self.config.actor_rollout_ref.rollout.agent.get(
+                "multimodal_storage_dtype", None
+            )
+            if storage_dtype_name is not None:
+                storage_dtype = getattr(torch, str(storage_dtype_name), None)
+                if storage_dtype not in {torch.float16, torch.bfloat16, torch.float32}:
+                    raise ValueError(
+                        "agent.multimodal_storage_dtype must be one of float16, bfloat16, float32, "
+                        f"got {storage_dtype_name}"
+                    )
+                teacher_multi_modal_inputs = {
+                    key: value.to(dtype=storage_dtype)
+                    if torch.is_tensor(value) and value.is_floating_point()
+                    else value
+                    for key, value in teacher_multi_modal_inputs.items()
+                }
 
             if hasattr(self.processor, "get_rope_index"):
                 processor_model_type = getattr(getattr(self.processor, "config", None), "model_type", None)

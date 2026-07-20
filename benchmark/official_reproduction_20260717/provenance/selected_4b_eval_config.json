@@ -1,0 +1,61 @@
+{
+  "official_eval_source_commit": "c2e345fcab10c806ba83e2ec6e1e246d73e7aba2",
+  "baseline": {
+    "model_path": "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B",
+    "served_model_name": "Qwen3.5-4B-baseline-official"
+  },
+  "trained": {
+    "checkpoint": "/data00/users/wanglikun/ProjWormLK/Vision-OPD/checkpoints/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4/global_step_65",
+    "merged_model_path": "/data00/users/wanglikun/ProjWormLK/Vision-OPD/merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4",
+    "served_model_name": "Vision-OPD-Qwen3.5-4B-released-b96-r8-official"
+  },
+  "training_semantics": {
+    "epoch": 1,
+    "global_steps": 65,
+    "prompts_consumed": 6240,
+    "train_batch_size": 96,
+    "rollouts_per_prompt": 8,
+    "ppo_mini_batch_size": 96,
+    "actor_sequence_parallel_size": 4,
+    "per_rank_dynamic_token_budget": 2304,
+    "full_sequence_token_budget": 9216,
+    "rollout_tensor_parallel_size": 4,
+    "rollout_gpu_memory_utilization": 0.3,
+    "rollout_max_num_seqs": 64,
+    "layered_summon": true,
+    "released_rollout_tensor_parallel_size": 1,
+    "documented_deviation": "The selected completed run used rollout TP4 instead of the released TP1 topology."
+  },
+  "judge": {
+    "model_path": "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/OpenAI/gpt-oss-120b",
+    "served_model_name": "openai/gpt-oss-120b",
+    "tensor_parallel_size": 2,
+    "max_model_len": 8192,
+    "max_tokens": 2048,
+    "reasoning_parser": "openai_gptoss"
+  },
+  "inference": {
+    "seed": 42,
+    "temperature": 0,
+    "enable_thinking": false,
+    "max_tokens": 32768,
+    "max_retries": 3,
+    "parallel_workers": 256,
+    "model_max_len": 65536,
+    "model_tensor_parallel_size": 1,
+    "model_data_parallel_size": 6
+  },
+  "benchmarks": {
+    "vstar": 191,
+    "zoombench": 845,
+    "hrbench-4k": 800,
+    "hrbench-8k": 800,
+    "mme-realworld": 23609,
+    "mme-realworld-cn": 5462,
+    "mmstar": 1500,
+    "pope": 9000,
+    "cv-bench": 2638,
+    "mmvp": 300
+  },
+  "rows_per_model": 45145
+}

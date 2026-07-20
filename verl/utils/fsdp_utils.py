@@ -245,7 +245,9 @@ def offload_fsdp_optimizer(optimizer):
             state = optimizer.state[param]
             for key, value in state.items():
                 if isinstance(value, torch.Tensor):
-                    state[key] = value.to("cpu", non_blocking=True)
+                    # Large sharded Adam states can fail asynchronous D2H copies
+                    # with the colocated vLLM CuMem allocator on this CUDA stack.
+                    state[key] = value.to("cpu", non_blocking=False)
 
 
 @torch.no_grad()
@@ -257,7 +259,7 @@ def load_fsdp_optimizer(optimizer, device_id):
             state = optimizer.state[param]
             for key, value in state.items():
                 if isinstance(value, torch.Tensor):
-                    state[key] = value.to(device_id, non_blocking=True)
+                    state[key] = value.to(device_id, non_blocking=False)
 
 
 @contextmanager

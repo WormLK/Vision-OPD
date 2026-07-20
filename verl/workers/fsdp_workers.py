@@ -848,6 +848,8 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
             )
             if getattr(self, "tokenizer", None) is not None:
                 self.actor.tokenizer = self.tokenizer
+            if getattr(self, "processor", None) is not None:
+                self.actor.processor = self.processor
 
         if self._is_rollout:
             self._build_rollout(trust_remote_code=self.config.model.get("trust_remote_code", False))
@@ -939,6 +941,26 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 processing_class=self.processor if self.processor is not None else self.tokenizer,
                 checkpoint_config=self.config.actor.checkpoint,
             )
+            self.teacher_checkpoint_manager = None
+            self_distillation_cfg = self.config.actor.get("self_distillation", None)
+            if (
+                self_distillation_cfg is not None
+                and self.config.actor.policy_loss.get("loss_mode", "vanilla") == "vopd"
+                and self_distillation_cfg.get("teacher_model_source", "legacy") == "legacy"
+                and self_distillation_cfg.get("teacher_regularization", "ema") in {"ema", "progressive"}
+                and self.actor.teacher_module is not None
+                and self.actor.teacher_module is not self.actor_module_fsdp
+            ):
+                teacher_checkpoint_config = OmegaConf.create(
+                    {"load_contents": ["model"], "save_contents": ["model"]}
+                )
+                self.teacher_checkpoint_manager = FSDPCheckpointManager(
+                    model=self.actor.teacher_module,
+                    optimizer=None,
+                    lr_scheduler=None,
+                    processing_class=self.processor if self.processor is not None else self.tokenizer,
+                    checkpoint_config=teacher_checkpoint_config,
+                )
 
         if not self._is_actor and self._is_rollout:
             # If ActorRolloutRefWorker is initialized as a standalone rollout,
@@ -1148,6 +1170,15 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         self.checkpoint_manager.save_checkpoint(
             local_path=local_path, hdfs_path=hdfs_path, global_step=global_step, max_ckpt_to_keep=max_ckpt_to_keep
         )
+        if self.teacher_checkpoint_manager is not None:
+            teacher_local_path = os.path.join(local_path, "teacher")
+            teacher_hdfs_path = os.path.join(hdfs_path, "teacher") if hdfs_path is not None else None
+            self.teacher_checkpoint_manager.save_checkpoint(
+                local_path=teacher_local_path,
+                hdfs_path=teacher_hdfs_path,
+                global_step=global_step,
+                max_ckpt_to_keep=max_ckpt_to_keep,
+            )
         dist.barrier()
 
         if self._is_lora and hasattr(getattr(self, "actor_module", self.actor_module_fsdp), "peft_config"):
@@ -1205,6 +1236,18 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         self.checkpoint_manager.load_checkpoint(
             local_path=local_path, hdfs_path=hdfs_path, del_local_after_load=del_local_after_load
         )
+        if self._is_actor and self.teacher_checkpoint_manager is not None:
+            teacher_local_path = os.path.join(local_path, "teacher")
+            if not os.path.isdir(teacher_local_path):
+                raise RuntimeError(
+                    f"EMA/progressive teacher checkpoint is required for exact resume: {teacher_local_path}"
+                )
+            teacher_hdfs_path = os.path.join(hdfs_path, "teacher") if hdfs_path is not None else None
+            self.teacher_checkpoint_manager.load_checkpoint(
+                local_path=teacher_local_path,
+                hdfs_path=teacher_hdfs_path,
+                del_local_after_load=del_local_after_load,
+            )
 
         if self._is_offload_param:
             offload_fsdp_model_to_cpu(self.actor_module_fsdp)

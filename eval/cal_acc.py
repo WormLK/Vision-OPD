@@ -60,6 +60,7 @@ def calc_hrbench(judge_json, benchmark, benchmark_json):
         category_by_text[txt] = category
 
     category_stats = defaultdict(lambda: {"correct": 0, "total": 0})
+    cycle_stats = defaultdict(lambda: {"correct": 0, "total": 0})
     overall_correct = 0
 
     for item in records:
@@ -68,10 +69,17 @@ def calc_hrbench(judge_json, benchmark, benchmark_json):
         if not category:
             category = category_by_image.get(image_key(item)) or category_by_text.get(text_key(item)) or "unknown"
         category_stats[category]["total"] += 1
+        cycle = str(item.get("cycle_category", "unknown"))
+        cycle_stats[cycle]["total"] += 1
         if correct:
             overall_correct += 1
             category_stats[category]["correct"] += 1
+            cycle_stats[cycle]["correct"] += 1
 
+    for cycle, stats in sorted(cycle_stats.items()):
+        print(f"cycle/{cycle}: {acc_text(stats['correct'], stats['total'])}")
+    for category, stats in sorted(category_stats.items()):
+        print(f"category/{category}: {acc_text(stats['correct'], stats['total'])}")
     print(f"{benchmark} Acc: {acc_text(overall_correct, len(records))}")
 
 
@@ -99,6 +107,7 @@ def calc_mme_realworld(judge_json, benchmark, benchmark_json):
         category_by_text[txt] = category
 
     category_stats = defaultdict(lambda: {"correct": 0, "total": 0})
+    l2_category_stats = defaultdict(lambda: {"correct": 0, "total": 0})
     supercategory_stats = defaultdict(lambda: {"correct": 0, "total": 0})
     overall_correct = 0
 
@@ -108,15 +117,24 @@ def calc_mme_realworld(judge_json, benchmark, benchmark_json):
         if not category:
             category = category_by_image.get(image_key(item)) or category_by_text.get(text_key(item)) or "unknown"
         supercategory = category.split("/", 1)[0].strip() if "/" in category else category.strip()
+        l2_category = str(item.get("l2_category", "unknown") or "unknown").strip()
         if not supercategory:
             supercategory = "unknown"
         category_stats[category]["total"] += 1
+        l2_category_stats[l2_category]["total"] += 1
         supercategory_stats[supercategory]["total"] += 1
         if correct:
             overall_correct += 1
             category_stats[category]["correct"] += 1
+            l2_category_stats[l2_category]["correct"] += 1
             supercategory_stats[supercategory]["correct"] += 1
 
+    for l2_category, stats in sorted(l2_category_stats.items()):
+        print(f"l2/{l2_category}: {acc_text(stats['correct'], stats['total'])}")
+    for category, stats in sorted(category_stats.items()):
+        print(f"category/{category}: {acc_text(stats['correct'], stats['total'])}")
+    for supercategory, stats in sorted(supercategory_stats.items()):
+        print(f"task/{supercategory}: {acc_text(stats['correct'], stats['total'])}")
     print(f"{benchmark} Acc: {acc_text(overall_correct, len(records))}")
 
 

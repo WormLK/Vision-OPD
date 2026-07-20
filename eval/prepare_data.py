@@ -1,6 +1,7 @@
 import argparse
 import base64
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -127,15 +128,28 @@ def prepare_vstar(out_dir):
 def prepare_hrbench(out_dir, benchmark):
     import pyarrow.parquet as pq
 
-    local_dir = out_dir / "HR-Bench_data"
-    snapshot_download("DreamMr/HR-Bench", repo_type="dataset", local_dir=str(local_dir))
-
     parquet_name = "hr_bench_4k.parquet" if benchmark == "hrbench-4k" else "hr_bench_8k.parquet"
-    src = local_dir / parquet_name
+    local_candidates = [
+        out_dir.parent / "raw" / "HR-Bench" / parquet_name,
+        out_dir.parent / "raw" / "HRBENCH" / parquet_name,
+    ]
+    src = next((path for path in local_candidates if path.exists()), None)
+    if src is None:
+        local_dir = out_dir / "HR-Bench_data"
+        snapshot_download("DreamMr/HR-Bench", repo_type="dataset", local_dir=str(local_dir))
+        src = local_dir / parquet_name
+    else:
+        print(f"Using local HR-Bench parquet: {src}")
     img_dir = out_dir / ("HRBench_4k_images" if benchmark == "hrbench-4k" else "HRBench_8k_images")
     img_dir.mkdir(parents=True, exist_ok=True)
 
-    table = pq.read_table(str(src), columns=["index", "question", "answer", "A", "B", "C", "D", "category", "image"])
+    table = pq.read_table(
+        str(src),
+        columns=[
+            "index", "question", "answer", "A", "B", "C", "D",
+            "category", "cycle_category", "image",
+        ],
+    )
     rows = table.to_pylist()
 
     data = []
@@ -162,6 +176,7 @@ def prepare_hrbench(out_dir, benchmark):
             "query": query,
             "response": (row.get("answer") or "").strip(),
             "category": (row.get("category") or "").strip(),
+            "cycle_category": int(row.get("cycle_category", 0)),
         })
     return data
 
@@ -170,14 +185,24 @@ def _load_mme_realworld_parquet(repo_id, out_dir, img_subdir):
     import pyarrow.dataset as ds
 
     local_dir = out_dir / repo_id.replace("/", "_")
-    snapshot_download(repo_id, repo_type="dataset", local_dir=str(local_dir))
+    snapshot_download(
+        repo_id,
+        repo_type="dataset",
+        local_dir=str(local_dir),
+        max_workers=int(os.environ.get("HF_SNAPSHOT_MAX_WORKERS", "4")),
+    )
 
     data_dir = local_dir / "data"
     img_dir = out_dir / img_subdir
     img_dir.mkdir(parents=True, exist_ok=True)
 
     dataset = ds.dataset(str(data_dir), format="parquet")
-    table = dataset.to_table(columns=["bytes", "index", "question", "multi-choice options", "answer"])
+    table = dataset.to_table(
+        columns=[
+            "bytes", "index", "question", "multi-choice options", "answer",
+            "category", "l2-category",
+        ]
+    )
     return table.to_pylist(), img_dir
 
 
@@ -222,6 +247,8 @@ def _process_mme_realworld_rows(rows, img_dir, lang="en"):
             "images": [str(img_path)],
             "query": query,
             "response": answer,
+            "category": (row.get("category") or "unknown").strip(),
+            "l2_category": (row.get("l2-category") or "unknown").strip(),
         })
     return data
 

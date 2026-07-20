@@ -1,4 +1,5 @@
 import argparse
+from decimal import Decimal, InvalidOperation
 import json
 import os
 import re
@@ -12,6 +13,7 @@ MCQ_BENCHMARKS = [
     "hrbench-4k",
     "hrbench-8k",
     "vstar",
+    "zoombench",
     "mme-realworld",
     "mme-realworld-cn",
     "mme-realworld-lite",
@@ -42,18 +44,26 @@ PROMPT_TEMPLATE = (
 )
 
 
-def extract_first_option(text):
-    if not text:
+def extract_predicted_option(answer):
+    if not isinstance(answer, str) or not answer:
         return ""
-    match = re.search(r"\(([A-Z])\)", text)
+    text = answer.strip()
+    labeled = re.search(
+        r"(?i)\b(?:final\s+answer|answer|option|choice)\s*(?:is|:)?\s*"
+        r"[\(\[]?([A-F])(?:[\)\]]|(?=$)|[\s\.,:;])",
+        text,
+    )
+    if labeled:
+        return labeled.group(1).upper()
+    match = re.match(r"^[\s\(\[]*([A-F])(?:[\)\]]|(?=$)|[\s\.,:;])", text, re.IGNORECASE)
     if match:
-        return match.group(1)
-    match = re.search(r"([A-Z])[\.\)\s]", text)
-    if match:
-        return match.group(1)
-    match = re.search(r"([A-Z])", text)
-    if match:
-        return match.group(1)
+        return match.group(1).upper()
+    parenthesized = re.findall(r"\(([A-F])\)", text, re.IGNORECASE)
+    if parenthesized:
+        return parenthesized[-1].upper()
+    standalone = re.findall(r"(?<![A-Za-z])([A-F])(?![A-Za-z])", text, re.IGNORECASE)
+    if standalone:
+        return standalone[-1].upper()
     return ""
 
 
@@ -99,10 +109,47 @@ def mmvp_extract(text):
     return ""
 
 
-def first_letter_match(gt, answer):
+def grade_mcq_option(gt, answer):
     gt_val = extract_mcq_option(gt)
-    pred_val = extract_first_option(answer)
-    return bool(gt_val and pred_val and gt_val == pred_val)
+    pred_val = extract_predicted_option(answer)
+    if not gt_val or not pred_val:
+        return None
+    return gt_val == pred_val
+
+
+def extract_numeric_answer(answer):
+    if not isinstance(answer, str) or not answer.strip():
+        return None
+    text = answer.strip().replace(",", "")
+    numbers = re.findall(r"(?<![\w.])-?(?:\d+(?:\.\d+)?|\.\d+)(?!\w)", text)
+    if len(numbers) != 1:
+        return None
+    try:
+        return Decimal(numbers[0])
+    except InvalidOperation:
+        return None
+
+
+def grade_numeric_answer(gt, answer):
+    gt_value = extract_numeric_answer(gt)
+    if gt_value is None or not re.fullmatch(r"\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*", str(gt)):
+        return None
+    pred_value = extract_numeric_answer(answer)
+    if pred_value is None:
+        return None
+    return gt_value == pred_value
+
+
+def grade_deterministic(benchmark, gt, answer):
+    if benchmark == "zoombench":
+        numeric_result = grade_numeric_answer(gt, answer)
+        if numeric_result is not None:
+            return ("Yes" if numeric_result else "No"), "numeric_exact"
+    if benchmark in MCQ_BENCHMARKS:
+        mcq_result = grade_mcq_option(gt, answer)
+        if mcq_result is not None:
+            return ("Yes" if mcq_result else "No"), "mcq_option"
+    return None
 
 
 def extract_answer(model_answer_raw):
@@ -116,7 +163,36 @@ def extract_answer(model_answer_raw):
     return model_answer_raw.strip()
 
 
-def judge_via_api(prompts, api_base, api_key, judge_model, judge_max_tokens, parallel_workers=32):
+def normalize_judge_output(text):
+    if not isinstance(text, str):
+        return "[JUDGE_API_ERROR]"
+    text = text.strip()
+    if text.startswith("[JUDGE_API_ERROR]"):
+        return text
+    think_end = text.rfind("</think>")
+    if think_end != -1:
+        text = text[think_end + len("</think>") :].strip()
+    matches = re.findall(r"\b(yes|no)\b", text, flags=re.IGNORECASE)
+    if matches:
+        return matches[-1].capitalize()
+    lowered = text.lower()
+    if re.search(r"\b(?:response|answer)\s+is\s+incorrect\b", lowered):
+        return "No"
+    if re.search(r"\b(?:response|answer)\s+is\s+correct\b", lowered):
+        return "Yes"
+    return text
+
+
+def judge_via_api(
+    prompts,
+    api_base,
+    api_key,
+    judge_model,
+    judge_max_tokens,
+    parallel_workers=32,
+    max_retries=10,
+    enable_thinking=None,
+):
     from openai import OpenAI
 
     thread_local = threading.local()
@@ -134,19 +210,25 @@ def judge_via_api(prompts, api_base, api_key, judge_model, judge_max_tokens, par
 
     def call_one(idx, prompt):
         client = get_client()
-        for attempt in range(3):
+        for attempt in range(max_retries):
             try:
+                extra_kwargs = {}
+                if enable_thinking is not None:
+                    extra_kwargs["extra_body"] = {
+                        "chat_template_kwargs": {"enable_thinking": enable_thinking}
+                    }
                 resp = client.chat.completions.create(
                     model=judge_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0,
                     max_tokens=judge_max_tokens,
+                    **extra_kwargs,
                 )
                 return idx, (resp.choices[0].message.content or "").strip()
             except Exception:
-                if attempt < 2:
-                    time.sleep(1.0)
-        return idx, "No"
+                if attempt < max_retries - 1:
+                    time.sleep(min(2 ** attempt, 30))
+        return idx, "[JUDGE_API_ERROR]"
 
     with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
         futures = [executor.submit(call_one, i, p) for i, p in enumerate(prompts)]
@@ -188,6 +270,11 @@ def main():
     parser.add_argument("--api_key", default="EMPTY", type=str)
     parser.add_argument("--judge_model", default=None, type=str, help="Model name for API-based judging")
     parser.add_argument("--judge_max_tokens", default=2048, type=int)
+    parser.add_argument("--answer_dir", default="model_answer", type=str)
+    parser.add_argument("--judge_dir", default="judge", type=str)
+    parser.add_argument("--parallel_workers", default=32, type=int)
+    parser.add_argument("--max_retries", default=10, type=int)
+    parser.add_argument("--enable_thinking", choices=["True", "False"], default=None)
     args = parser.parse_args()
 
     if not args.api_base and not args.judge_model_path:
@@ -198,10 +285,9 @@ def main():
         )
         sys.exit(1)
 
-    answer_path = f"model_answer/{args.benchmark}/{args.model}_answer.jsonl"
-    save_path = f"judge/{args.benchmark}/{args.model}_answer.jsonl"
-    os.makedirs(f"judge/{args.benchmark}", exist_ok=True)
-    is_mcq = args.benchmark in MCQ_BENCHMARKS
+    answer_path = os.path.join(args.answer_dir, args.benchmark, f"{args.model}_answer.jsonl")
+    save_path = os.path.join(args.judge_dir, args.benchmark, f"{args.model}_answer.jsonl")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     is_pope = args.benchmark in POPE_BENCHMARKS
     is_mmvp = args.benchmark in MMVP_BENCHMARKS
 
@@ -244,26 +330,28 @@ def main():
                 item["judge"] = "Yes"
                 item["judge_source"] = "mmvp_option"
 
-        if not is_correct and has_mathruler:
+        deterministic_result = None
+        if not is_correct:
+            try:
+                deterministic_result = grade_deterministic(args.benchmark, gt, extracted_answer)
+            except Exception:
+                deterministic_result = None
+
+        if deterministic_result is not None:
+            item["judge"], item["judge_source"] = deterministic_result
+        elif is_correct:
+            continue
+        elif has_mathruler:
             try:
                 is_correct = grade_answer(gt, extracted_answer)
             except Exception:
                 is_correct = False
+            if is_correct:
+                item["judge"] = "Yes"
+                item["judge_source"] = "mathruler"
+                continue
 
-        is_letter_correct = False
-        if not is_correct and is_mcq:
-            try:
-                is_letter_correct = first_letter_match(gt, extracted_answer)
-            except Exception:
-                is_letter_correct = False
-
-        if is_correct and "judge" not in item:
-            item["judge"] = "Yes"
-            item["judge_source"] = "mathruler"
-        elif is_letter_correct:
-            item["judge"] = "Yes"
-            item["judge_source"] = "first letter"
-        else:
+        if "judge" not in item:
             prompt = PROMPT_TEMPLATE.format(gt=gt, response=extracted_answer, question=question)
             to_llm_indices.append(i)
             prompt_lists.append(prompt)
@@ -273,15 +361,25 @@ def main():
         if args.api_base:
             judge_model_name = args.judge_model or "default"
             results = judge_via_api(
-                prompt_lists, args.api_base, args.api_key, judge_model_name, args.judge_max_tokens
+                prompt_lists,
+                args.api_base,
+                args.api_key,
+                judge_model_name,
+                args.judge_max_tokens,
+                args.parallel_workers,
+                args.max_retries,
+                args.enable_thinking == "True" if args.enable_thinking is not None else None,
             )
         else:
             results = judge_via_vllm(prompt_lists, args.judge_model_path, args.judge_max_tokens)
 
         for idx_in_llm, response_text in enumerate(results):
             original_idx = to_llm_indices[idx_in_llm]
-            data_list[original_idx]["judge"] = response_text
+            data_list[original_idx]["judge"] = normalize_judge_output(response_text)
             data_list[original_idx]["judge_source"] = "llm"
+            data_list[original_idx]["judge_model"] = (
+                args.judge_model or args.judge_model_path or "default"
+            )
 
     print(f"Total: {len(data_list)}, LLM used: {len(prompt_lists)}")
 

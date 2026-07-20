@@ -71,6 +71,16 @@ class CustomAsyncServerConfig(BaseConfig):
 @dataclass
 class AgentLoopConfig(BaseConfig):
     num_workers: int = 8
+    # Maximum number of trajectories dispatched in one host-memory wave.
+    # None preserves the legacy all-at-once behavior.
+    dispatch_batch_size: Optional[int] = None
+    # Optional floating-point dtype used while multimodal processor tensors are
+    # retained on CPU between rollout and actor forward.
+    multimodal_storage_dtype: Optional[str] = None
+    # Keep only image references and layout metadata in trajectories, then run
+    # the processor again inside each actor/teacher forward micro-batch.
+    defer_multimodal_processing: bool = False
+    multimodal_cache_dir: Optional[str] = None
     default_agent_loop: str = "single_turn_agent"
     agent_loop_config_path: Optional[str] = None
     custom_async_server: CustomAsyncServerConfig = field(default_factory=CustomAsyncServerConfig)
