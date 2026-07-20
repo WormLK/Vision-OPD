@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib.util
 import json
 import re
 from datetime import datetime, timezone
@@ -19,10 +20,10 @@ BENCHMARKS = (
     ("hrbench-8k", "HR-Bench-8K", 80.13, 80.38),
     ("mme-realworld", "MME-RealWorld-EN", 63.86, 74.88),
     ("mme-realworld-cn", "MME-RealWorld-CN", 63.70, 70.76),
-    ("mmstar", "MMStar", None, None),
-    ("pope", "POPE-Test", None, None),
-    ("cv-bench", "CV-Bench", None, None),
-    ("mmvp", "MMVP", None, None),
+    ("mmstar", "MMStar", 78.53, 79.60),
+    ("pope", "POPE-Test", 88.28, 89.14),
+    ("cv-bench", "CV-Bench", 87.13, 87.27),
+    ("mmvp", "MMVP", 76.67, 79.67),
 )
 BASELINE_MODEL = "Qwen3.5-4B-baseline-official"
 OPD_MODEL = "Vision-OPD-Qwen3.5-4B-released-b96-r8-official"
@@ -132,6 +133,57 @@ def answer_length_stats(path: Path) -> tuple[int, int, int, int]:
     return len(lengths), p95, lengths[-1], sum(length > 10000 for length in lengths)
 
 
+def interim_mme_rule_stats(answer_path: Path, judge_source: Path) -> dict[str, tuple[int, int]]:
+    """Apply only the official judge's deterministic pre-LLM rules to a live snapshot."""
+    groups = {"all": [0, 0], "<10k": [0, 0], ">=10k": [0, 0], ">=50k": [0, 0]}
+    if not answer_path.is_file() or not judge_source.is_file():
+        return {key: (0, 0) for key in groups}
+
+    spec = importlib.util.spec_from_file_location("vision_opd_official_judge", judge_source)
+    if spec is None or spec.loader is None:
+        return {key: (0, 0) for key in groups}
+    judge_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(judge_module)
+    try:
+        from mathruler.grader import grade_answer
+    except ImportError:
+        grade_answer = None
+
+    with answer_path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            raw = str(item.get("model_answer", "") or "")
+            extracted = judge_module.extract_answer(raw)
+            ground_truth = str(item.get("response", "") or "")
+            correct = False
+            if grade_answer is not None:
+                try:
+                    correct = bool(grade_answer(ground_truth, extracted))
+                except Exception:
+                    correct = False
+            if not correct:
+                try:
+                    correct = bool(judge_module.first_letter_match(ground_truth, extracted))
+                except Exception:
+                    correct = False
+            predicates = {
+                "all": True,
+                "<10k": len(raw) < 10_000,
+                ">=10k": len(raw) >= 10_000,
+                ">=50k": len(raw) >= 50_000,
+            }
+            for name, included in predicates.items():
+                if included:
+                    groups[name][1] += 1
+                    groups[name][0] += int(correct)
+    return {key: (values[0], values[1]) for key, values in groups.items()}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -197,6 +249,27 @@ def main() -> None:
         f"N/R | {format_score(macro(opd_scores))} |"
     )
 
+    lines += [
+        "",
+        "### Paper Table 2 Hold-out Tasks",
+        "",
+        "The paper defines these four datasets as hold-out tasks that are unseen during "
+        "Vision-OPD training. Values below are transcribed from Table 2 of "
+        "[arXiv:2605.18740](https://arxiv.org/pdf/2605.18740).",
+        "",
+        "| Hold-out benchmark | Paper Vanilla 4B | Paper OPD-4B | Paper gain | "
+        "Local Baseline 4B | Local OPD-4B |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for index in (9, 8, 6, 7):
+        _, label, paper_base, paper_opd = BENCHMARKS[index]
+        assert paper_base is not None and paper_opd is not None
+        lines.append(
+            f"| {label} | {paper_base:.2f}% | {paper_opd:.2f}% | "
+            f"{paper_opd - paper_base:+.2f} pp | {format_score(baseline_scores[index])} | "
+            f"{format_score(opd_scores[index])} |"
+        )
+
     local_baseline_macro = macro(core_baseline)
     local_opd_macro = macro(core_opd)
     lines += ["", "## Alignment Verdict", ""]
@@ -256,6 +329,39 @@ def main() -> None:
             lines.append(
                 f"| {model_label} | {label} | {stats[0]} | {stats[1]} | {stats[2]} | {stats[3]} |"
             )
+
+    interim_answer = (
+        official
+        / "model_answer"
+        / "mme-realworld"
+        / f"{OPD_MODEL}_seed42_answer.jsonl"
+    )
+    interim_stats = interim_mme_rule_stats(
+        interim_answer, official / "source" / "eval" / "judge_qwenlm.py"
+    )
+    lines += [
+        "",
+        "### Interim MME-RealWorld-EN Snapshot",
+        "",
+        "This is a moving partial snapshot, not the final benchmark score. `Rule-direct correct` "
+        "uses only the deterministic MathRuler/first-option stages of the official judge. "
+        "Unresolved rows still require GPT-OSS-120B, so the percentage is a conservative lower "
+        "bound and the incomplete prefix need not be representative of the full dataset.",
+        "",
+        "| Response-length group | Snapshot rows | Rule-direct correct | Lower bound |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    for group in ("all", "<10k", ">=10k", ">=50k"):
+        correct, total = interim_stats[group]
+        percentage = 100.0 * correct / total if total else 0.0
+        lines.append(f"| {group} characters | {total} | {correct} | {percentage:.2f}% |")
+    lines += [
+        "",
+        "The long-response groups have a substantially lower rule-direct success rate. Responses "
+        "that exceed the GPT-OSS judge's 8,192-token context can also fail judge requests and are "
+        "then conservatively recorded as `No` after the official three retries. This affects final "
+        "accuracy in addition to increasing inference latency.",
+    ]
 
     lines += [
         "",

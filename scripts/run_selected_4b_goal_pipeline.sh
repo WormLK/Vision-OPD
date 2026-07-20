@@ -54,9 +54,6 @@ touch "${GOAL_MARKER}"
 python scripts/summarize_4b_vtc_reproduction.py \
   --project-root "${PROJECT_ROOT}" --vtc-root "${VTC_ROOT}" \
   --output "${PROJECT_ROOT}/docs/vision_opd_4b_vtc_reproduction.md"
-python scripts/summarize_4b_vtc_reproduction.py \
-  --project-root "${PROJECT_ROOT}" --vtc-root "${VTC_ROOT}" \
-  --output "${PROJECT_ROOT}/docs/vision_opd_goal_reproduction_report.md"
 
 log "Starting VTC-Bench code-driven and interface-driven tracks."
 MODEL_PATH="${OPD_PATH}" MODEL_NAME="${OPD_NAME}" OPD_MARKER="${GOAL_MARKER}" \
@@ -65,9 +62,6 @@ MODEL_PATH="${OPD_PATH}" MODEL_NAME="${OPD_NAME}" OPD_MARKER="${GOAL_MARKER}" \
 python scripts/summarize_4b_vtc_reproduction.py \
   --project-root "${PROJECT_ROOT}" --vtc-root "${VTC_ROOT}" \
   --output "${PROJECT_ROOT}/docs/vision_opd_4b_vtc_reproduction.md"
-python scripts/summarize_4b_vtc_reproduction.py \
-  --project-root "${PROJECT_ROOT}" --vtc-root "${VTC_ROOT}" \
-  --output "${PROJECT_ROOT}/docs/vision_opd_goal_reproduction_report.md"
 python scripts/audit_4b_goal_completion.py \
   --project-root "${PROJECT_ROOT}" --vtc-root "${VTC_ROOT}" \
   | tee "${PROJECT_ROOT}/logs/vision_opd_4b_goal_completion_audit.log"
