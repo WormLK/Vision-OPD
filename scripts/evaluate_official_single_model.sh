@@ -16,6 +16,7 @@ MODEL_TP="${MODEL_TP:-1}"
 MODEL_DP="${MODEL_DP:-6}"
 MODEL_PORT="${MODEL_PORT:-8000}"
 JUDGE_PORT="${JUDGE_PORT:-8001}"
+JUDGE_CONTEXT_LEN="${JUDGE_CONTEXT_LEN:-65536}"
 LOG_DIR="${OFFICIAL_ROOT}/logs"
 BENCHMARKS="vstar,zoombench,hrbench-4k,hrbench-8k,mme-realworld,mme-realworld-cn,mmstar,pope,cv-bench,mmvp"
 
@@ -100,7 +101,7 @@ python "${PROJECT_ROOT}/scripts/validate_gpt_oss_judge.py" "${JUDGE_PATH}"
 setsid env CUDA_VISIBLE_DEVICES=6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn \
   vllm serve "${JUDGE_PATH}" --served-model-name "${JUDGE_NAME}" \
     --host 127.0.0.1 --port "${JUDGE_PORT}" --tensor-parallel-size 2 \
-    --max-model-len 8192 --gpu-memory-utilization 0.92 \
+    --max-model-len "${JUDGE_CONTEXT_LEN}" --gpu-memory-utilization 0.92 \
     --reasoning-parser openai_gptoss --trust-remote-code \
     > "${LOG_DIR}/vllm_${SERVED_MODEL_NAME}_judge.log" 2>&1 &
 judge_pid=$!

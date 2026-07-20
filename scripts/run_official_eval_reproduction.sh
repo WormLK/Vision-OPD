@@ -16,6 +16,7 @@ JUDGE_NAME="openai/gpt-oss-120b"
 JQ="/data00/users/wanglikun/anaconda3/bin/jq"
 MODEL_PORT="${MODEL_PORT:-8000}"
 JUDGE_PORT="${JUDGE_PORT:-8001}"
+JUDGE_CONTEXT_LEN="${JUDGE_CONTEXT_LEN:-65536}"
 MAX_PIPELINE_ATTEMPTS="${MAX_PIPELINE_ATTEMPTS:-100}"
 BENCHMARKS="vstar,zoombench,hrbench-4k,hrbench-8k,mme-realworld,mme-realworld-cn"
 
@@ -104,7 +105,7 @@ start_judge() {
     vllm serve "${JUDGE_PATH}" \
       --served-model-name "${JUDGE_NAME}" \
       --host 127.0.0.1 --port "${JUDGE_PORT}" \
-      --tensor-parallel-size 2 --max-model-len 8192 \
+      --tensor-parallel-size 2 --max-model-len "${JUDGE_CONTEXT_LEN}" \
       --gpu-memory-utilization 0.92 --reasoning-parser openai_gptoss \
       --trust-remote-code \
       > "${LOG_DIR}/vllm_gpt_oss_120b_judge.log" 2>&1 &

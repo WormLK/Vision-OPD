@@ -369,10 +369,11 @@ def main() -> None:
         lines.append(f"| {group} characters | {total} | {correct} | {percentage:.2f}% |")
     lines += [
         "",
-        "The long-response groups have a substantially lower rule-direct success rate. Responses "
-        "that exceed the GPT-OSS judge's 8,192-token context can also fail judge requests and are "
-        "then conservatively recorded as `No` after the official three retries. This affects final "
-        "accuracy in addition to increasing inference latency.",
+        "The long-response groups have a substantially lower rule-direct success rate. An earlier "
+        "local diagnostic judge service was limited to 8,192 tokens; those judge/score artifacts "
+        "are archived and excluded because overlength requests could be recorded as `No` after the "
+        "official three retries. Final baseline and OPD-4B results use a 65,536-token GPT-OSS "
+        "context, while preserving the pristine official judge implementation.",
     ]
 
     lines += [
@@ -427,7 +428,8 @@ def main() -> None:
         "paper alignment gate remains the six benchmarks reported in the Vision-OPD main table.",
         f"- 10-benchmark contract SHA-256: `{sha256(benchmark_contract)}`.",
         f"- Selected evaluation provenance SHA-256: `{sha256(eval_provenance)}`.",
-        "- Official judge: `openai/gpt-oss-120b` with the pristine `judge_qwenlm.py`.",
+        "- Official judge: `openai/gpt-oss-120b` with the pristine `judge_qwenlm.py`; "
+        "judge context 65,536 tokens, sufficient for the official 32,768-token model response cap.",
         "- VTC generation: temperature 0.6, top-p 0.95, top-k 20, seed 1234, max tokens 40960, 30 workers.",
         "- VTC serving: vLLM DP8/TP1, context 65536, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser.",
         "- VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.",
@@ -442,6 +444,7 @@ def main() -> None:
         f"- Selected evaluation provenance: `{eval_provenance}`",
         f"- Selected checkpoint: `{project / 'checkpoints' / 'Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4' / 'global_step_65'}`",
         f"- Selected merged model: `{project / 'merged_models' / 'Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4'}`",
+        f"- Excluded 8,192-context judge diagnostics: `{project / 'benchmark' / 'diagnostic_judge_ctx8192_20260720'}`",
         f"- Final goal audit log: `{project / 'logs' / 'vision_opd_4b_goal_completion_audit.log'}`",
         f"- Final goal audit marker: `{project / 'outputs' / 'vision_opd_4b_goal_audit_complete'}`",
         f"- VTC code score: `{code_score_path}`",

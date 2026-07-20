@@ -33,8 +33,8 @@ def main():
         raise SystemExit(f"unexpected judge architecture: {config_json.get('architectures')}")
     if (config_json.get("quantization_config") or {}).get("quant_method") != "mxfp4":
         raise SystemExit("GPT-OSS judge is not the expected MXFP4 checkpoint")
-    if int(config_json.get("max_position_embeddings", 0)) < 8192:
-        raise SystemExit("GPT-OSS judge context is shorter than the configured 8192 tokens")
+    if int(config_json.get("max_position_embeddings", 0)) < 65536:
+        raise SystemExit("GPT-OSS judge context is shorter than the configured 65536 tokens")
 
     index = json.loads((root / "model.safetensors.index.json").read_text(encoding="utf-8"))
     weight_map = index.get("weight_map") or {}

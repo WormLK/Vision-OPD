@@ -11,6 +11,7 @@ JUDGE_PATH="/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/OpenAI/gpt-oss-120b"
 JUDGE_NAME="openai/gpt-oss-120b"
 JQ="/data00/users/wanglikun/anaconda3/bin/jq"
 JUDGE_PORT="${JUDGE_PORT:-8001}"
+JUDGE_CONTEXT_LEN="${JUDGE_CONTEXT_LEN:-65536}"
 LOG_DIR="${OFFICIAL_ROOT}/logs"
 mkdir -p "${LOG_DIR}" "${OFFICIAL_ROOT}/results" "${PROJECT_ROOT}/outputs"
 
@@ -71,7 +72,7 @@ ray stop --force >> "${LOG_DIR}/ray_stop_before_baseline_judge.log" 2>&1 || true
 setsid env CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn \
   vllm serve "${JUDGE_PATH}" --served-model-name "${JUDGE_NAME}" \
     --host 127.0.0.1 --port "${JUDGE_PORT}" --tensor-parallel-size 8 \
-    --max-model-len 8192 --gpu-memory-utilization 0.90 \
+    --max-model-len "${JUDGE_CONTEXT_LEN}" --gpu-memory-utilization 0.90 \
     --reasoning-parser openai_gptoss --trust-remote-code \
     > "${LOG_DIR}/vllm_gpt_oss_120b_baseline_judge.log" 2>&1 &
 server_pid=$!

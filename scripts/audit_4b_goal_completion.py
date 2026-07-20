@@ -178,6 +178,16 @@ def validate_vtc_runner(path: Path) -> None:
         raise RuntimeError("VTC runner still uses the incompatible Hermes tool parser")
 
 
+def validate_judge_context(path: Path) -> None:
+    if not path.is_file():
+        raise RuntimeError(f"missing official evaluation wrapper: {path}")
+    text = path.read_text(encoding="utf-8")
+    if 'JUDGE_CONTEXT_LEN="${JUDGE_CONTEXT_LEN:-65536}"' not in text:
+        raise RuntimeError("official GPT-OSS judge context is not locked to 65,536 tokens")
+    if '--max-model-len "${JUDGE_CONTEXT_LEN}"' not in text:
+        raise RuntimeError("official GPT-OSS launch does not use JUDGE_CONTEXT_LEN")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", type=Path, required=True)
@@ -229,6 +239,7 @@ def main() -> None:
     )
     merged = project / "merged_models" / EXPERIMENT
     run([sys.executable, str(project / "scripts" / "validate_merged_model.py"), str(merged)], project)
+    validate_judge_context(project / "scripts" / "evaluate_official_single_model.sh")
 
     model_scores: dict[str, list[float]] = {}
     for model in (BASELINE_MODEL, OPD_MODEL):
