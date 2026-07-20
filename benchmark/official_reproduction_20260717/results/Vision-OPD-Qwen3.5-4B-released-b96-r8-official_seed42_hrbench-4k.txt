@@ -1,1 +1,1 @@
-hrbench-4k Acc: 642/800 = 80.25%
+hrbench-4k Acc: 651/800 = 81.38%

@@ -1,15 +1,15 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-20T18:47:50.412394+00:00
+Generated: 2026-07-20T18:57:53.906934+00:00
 
 ## Official Benchmark Alignment
 
 | Benchmark | Paper Baseline 4B | Local Baseline 4B | Paper OPD-4B | Local OPD-4B |
 | --- | ---: | ---: | ---: | ---: |
 | Vstar | 84.29% | 82.72% | 92.15% | 90.58% |
-| ZoomBench | 47.69% | 48.88% | 59.76% | pending |
-| HR-Bench-4K | 84.38% | 87.50% | 84.50% | pending |
-| HR-Bench-8K | 80.13% | 83.12% | 80.38% | pending |
+| ZoomBench | 47.69% | 48.88% | 59.76% | 56.57% |
+| HR-Bench-4K | 84.38% | 87.50% | 84.50% | 81.38% |
+| HR-Bench-8K | 80.13% | 83.12% | 80.38% | 78.00% |
 | MME-RealWorld-EN | 63.86% | 63.89% | 74.88% | pending |
 | MME-RealWorld-CN | 63.70% | 64.94% | 70.76% | pending |
 | MMStar | 78.53% | 80.00% | 79.60% | pending |
@@ -42,7 +42,7 @@ Character length is reported because the selected checkpoint produced unusually 
 | --- | --- | ---: | ---: | ---: | ---: |
 | Local baseline 4B | MME-RealWorld-EN | 23609 | 1934 | 153522 | 282 |
 | Local baseline 4B | MME-RealWorld-CN | 5462 | 433 | 60847 | 37 |
-| Local OPD-4B | MME-RealWorld-EN | 12633 | 102779 | 186291 | 872 |
+| Local OPD-4B | MME-RealWorld-EN | 12774 | 102024 | 186291 | 873 |
 | Local OPD-4B | MME-RealWorld-CN | 0 | 0 | 0 | 0 |
 
 ### Interim MME-RealWorld-EN Snapshot
@@ -51,9 +51,9 @@ This is a moving partial snapshot, not the final benchmark score. `Rule-direct c
 
 | Response-length group | Snapshot rows | Rule-direct correct | Lower bound |
 | --- | ---: | ---: | ---: |
-| all characters | 12633 | 7123 | 56.38% |
-| <10k characters | 11761 | 6954 | 59.13% |
-| >=10k characters | 872 | 169 | 19.38% |
+| all characters | 12774 | 7178 | 56.19% |
+| <10k characters | 11901 | 7008 | 58.89% |
+| >=10k characters | 873 | 170 | 19.47% |
 | >=50k characters | 815 | 153 | 18.77% |
 
 The long-response groups have a substantially lower rule-direct success rate. An earlier local diagnostic judge service was limited to 8,192 tokens; those judge/score artifacts are archived and excluded because overlength requests could be recorded as `No` after the official three retries. Final baseline and OPD-4B results use a 65,536-token GPT-OSS context, while preserving the pristine official judge implementation.
