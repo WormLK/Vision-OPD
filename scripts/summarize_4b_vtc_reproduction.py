@@ -25,6 +25,18 @@ BENCHMARKS = (
     ("cv-bench", "CV-Bench", 87.13, 87.27),
     ("mmvp", "MMVP", 76.67, 79.67),
 )
+EXPECTED_COUNTS = {
+    "vstar": 191,
+    "zoombench": 845,
+    "hrbench-4k": 800,
+    "hrbench-8k": 800,
+    "mme-realworld": 23609,
+    "mme-realworld-cn": 5462,
+    "mmstar": 1500,
+    "pope": 9000,
+    "cv-bench": 2638,
+    "mmvp": 300,
+}
 BASELINE_MODEL = "Qwen3.5-4B-baseline-official"
 OPD_MODEL = "Vision-OPD-Qwen3.5-4B-released-b96-r8-official"
 

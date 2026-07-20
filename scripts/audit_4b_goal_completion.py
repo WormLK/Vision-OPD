@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import re
 import subprocess
 import sys
@@ -36,8 +37,8 @@ BENCHMARK_LABELS = (
     "CV-Bench",
     "MMVP",
 )
-PAPER_BASELINE = (84.29, 47.69, 84.38, 80.13, 63.86, 63.70, None, None, None, None)
-PAPER_OPD = (92.15, 59.76, 84.50, 80.38, 74.88, 70.76, None, None, None, None)
+PAPER_BASELINE = (84.29, 47.69, 84.38, 80.13, 63.86, 63.70, 78.53, 88.28, 87.13, 76.67)
+PAPER_OPD = (92.15, 59.76, 84.50, 80.38, 74.88, 70.76, 79.60, 89.14, 87.27, 79.67)
 BASELINE_MODEL = "Qwen3.5-4B-baseline-official"
 OPD_MODEL = "Vision-OPD-Qwen3.5-4B-released-b96-r8-official"
 EXPERIMENT = "Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4"
@@ -100,6 +101,19 @@ def require_score(path: Path, benchmark: str) -> float:
 
 def report_score(value: float | None) -> str:
     return "N/R" if value is None else f"{value:.2f}%"
+
+
+def read_vtc_overall(path: Path) -> float:
+    if not path.is_file():
+        raise RuntimeError(f"missing VTC score: {path}")
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows or "Overall" not in rows[0]:
+        raise RuntimeError(f"missing Overall in VTC score: {path}")
+    try:
+        return float(rows[0]["Overall"])
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"invalid Overall in VTC score: {path}") from exc
 
 
 def validate_vtc_config(
@@ -256,6 +270,7 @@ def main() -> None:
         ("code", "Qwen-Agent-Code-RawAPI-Instruct", "runs/vtc_vision_opd_4b_step65_code"),
         ("interface", "Qwen-Agent-Interface-RawAPI-Instruct", "runs/vtc_vision_opd_4b_step65_interface"),
     )
+    vtc_scores: dict[str, float] = {}
     for label, prefix, result_dir in tracks:
         score = eval_root / f"{prefix}-{OPD_MODEL}" / f"{OPD_MODEL}_VTC_Bench_score.csv"
         run(
@@ -271,6 +286,7 @@ def main() -> None:
             ],
             vtc,
         )
+        vtc_scores[label] = read_vtc_overall(score)
         print(f"PASS VTC {label} track")
 
     report = project / "docs/vision_opd_4b_vtc_reproduction.md"
@@ -299,6 +315,24 @@ def main() -> None:
         ]
         if cells != expected_cells:
             raise RuntimeError(f"incomplete four-column report row: {rows[0]}")
+
+    holdout_indices = (9, 8, 6, 7)
+    for index in holdout_indices:
+        label = BENCHMARK_LABELS[index]
+        rows = [line for line in report_text.splitlines() if line.startswith(f"| {label} |")]
+        if len(rows) != 2:
+            raise RuntimeError(f"missing or duplicate Table 2 hold-out row: {label}")
+        expected_cells = [
+            label,
+            report_score(PAPER_BASELINE[index]),
+            report_score(PAPER_OPD[index]),
+            f"{PAPER_OPD[index] - PAPER_BASELINE[index]:+.2f} pp",  # type: ignore[operator]
+            report_score(model_scores[BASELINE_MODEL][index]),
+            report_score(model_scores[OPD_MODEL][index]),
+        ]
+        cells = [cell.strip() for cell in rows[1].strip("|").split("|")]
+        if cells != expected_cells:
+            raise RuntimeError(f"incorrect Table 2 hold-out row: {rows[1]}")
     core_macro_rows = [
         line for line in report_text.splitlines() if line.startswith("| Core-six Macro |")
     ]
@@ -314,6 +348,19 @@ def main() -> None:
     macro_cells = [cell.strip() for cell in core_macro_rows[0].strip("|").split("|")]
     if macro_cells != expected_macro:
         raise RuntimeError(f"incorrect Core-six Macro report row: {core_macro_rows[0]}")
+
+    expected_vtc_rows = {
+        "Code-driven": vtc_scores["code"],
+        "Interface-driven": vtc_scores["interface"],
+    }
+    for label, overall in expected_vtc_rows.items():
+        rows = [line for line in report_text.splitlines() if line.startswith(f"| {label} |")]
+        expected_cells = [label, "680/680", f"{overall:.2f}%"]
+        if len(rows) != 1:
+            raise RuntimeError(f"missing or duplicate VTC report row: {label}")
+        cells = [cell.strip() for cell in rows[0].strip("|").split("|")]
+        if cells != expected_cells:
+            raise RuntimeError(f"stale VTC report row: {rows[0]}")
     print("PASS selected step-65 Vision-OPD-4B artifact completion audit")
 
 
