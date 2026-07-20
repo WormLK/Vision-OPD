@@ -1,23 +1,23 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-20T17:45:00.600476+00:00
+Generated: 2026-07-20T17:59:51.696691+00:00
 
 ## Official Benchmark Alignment
 
 | Benchmark | Paper Baseline 4B | Local Baseline 4B | Paper OPD-4B | Local OPD-4B |
 | --- | ---: | ---: | ---: | ---: |
-| Vstar | 84.29% | 82.72% | 92.15% | 90.58% |
-| ZoomBench | 47.69% | 48.88% | 59.76% | 56.57% |
-| HR-Bench-4K | 84.38% | 87.25% | 84.50% | 80.25% |
-| HR-Bench-8K | 80.13% | 83.00% | 80.38% | 77.75% |
-| MME-RealWorld-EN | 63.86% | 63.85% | 74.88% | pending |
-| MME-RealWorld-CN | 63.70% | 64.85% | 70.76% | pending |
-| MMStar | 78.53% | 79.80% | 79.60% | pending |
-| POPE-Test | 88.28% | 89.27% | 89.14% | pending |
-| CV-Bench | 87.13% | 87.21% | 87.27% | pending |
-| MMVP | 76.67% | 77.00% | 79.67% | pending |
-| Core-six Macro | 70.68% | 71.76% | 77.07% | pending |
-| Local 10-benchmark unweighted mean | N/R | 76.38% | N/R | pending |
+| Vstar | 84.29% | 82.72% | 92.15% | pending |
+| ZoomBench | 47.69% | 48.88% | 59.76% | pending |
+| HR-Bench-4K | 84.38% | 87.50% | 84.50% | pending |
+| HR-Bench-8K | 80.13% | pending | 80.38% | pending |
+| MME-RealWorld-EN | 63.86% | pending | 74.88% | pending |
+| MME-RealWorld-CN | 63.70% | pending | 70.76% | pending |
+| MMStar | 78.53% | pending | 79.60% | pending |
+| POPE-Test | 88.28% | pending | 89.14% | pending |
+| CV-Bench | 87.13% | pending | 87.27% | pending |
+| MMVP | 76.67% | pending | 79.67% | pending |
+| Core-six Macro | 70.68% | pending | 77.07% | pending |
+| Local 10-benchmark unweighted mean | N/R | pending | N/R | pending |
 
 ### Paper Table 2 Hold-out Tasks
 
@@ -25,10 +25,10 @@ The paper defines these four datasets as hold-out tasks that are unseen during V
 
 | Hold-out benchmark | Paper Vanilla 4B | Paper OPD-4B | Paper gain | Local Baseline 4B | Local OPD-4B |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| MMVP | 76.67% | 79.67% | +3.00 pp | 77.00% | pending |
-| CV-Bench | 87.13% | 87.27% | +0.14 pp | 87.21% | pending |
-| MMStar | 78.53% | 79.60% | +1.07 pp | 79.80% | pending |
-| POPE-Test | 88.28% | 89.14% | +0.86 pp | 89.27% | pending |
+| MMVP | 76.67% | 79.67% | +3.00 pp | pending | pending |
+| CV-Bench | 87.13% | 87.27% | +0.14 pp | pending | pending |
+| MMStar | 78.53% | 79.60% | +1.07 pp | pending | pending |
+| POPE-Test | 88.28% | 89.14% | +0.86 pp | pending | pending |
 
 ## Alignment Verdict
 
@@ -42,7 +42,7 @@ Character length is reported because the selected checkpoint produced unusually 
 | --- | --- | ---: | ---: | ---: | ---: |
 | Local baseline 4B | MME-RealWorld-EN | 23609 | 1934 | 153522 | 282 |
 | Local baseline 4B | MME-RealWorld-CN | 5462 | 433 | 60847 | 37 |
-| Local OPD-4B | MME-RealWorld-EN | 12417 | 97777 | 186291 | 818 |
+| Local OPD-4B | MME-RealWorld-EN | 12633 | 102779 | 186291 | 872 |
 | Local OPD-4B | MME-RealWorld-CN | 0 | 0 | 0 | 0 |
 
 ### Interim MME-RealWorld-EN Snapshot
@@ -51,12 +51,12 @@ This is a moving partial snapshot, not the final benchmark score. `Rule-direct c
 
 | Response-length group | Snapshot rows | Rule-direct correct | Lower bound |
 | --- | ---: | ---: | ---: |
-| all characters | 12419 | 7054 | 56.80% |
-| <10k characters | 11601 | 6889 | 59.38% |
-| >=10k characters | 818 | 165 | 20.17% |
-| >=50k characters | 762 | 149 | 19.55% |
+| all characters | 12633 | 7123 | 56.38% |
+| <10k characters | 11761 | 6954 | 59.13% |
+| >=10k characters | 872 | 169 | 19.38% |
+| >=50k characters | 815 | 153 | 18.77% |
 
-The long-response groups have a substantially lower rule-direct success rate. Responses that exceed the GPT-OSS judge's 8,192-token context can also fail judge requests and are then conservatively recorded as `No` after the official three retries. This affects final accuracy in addition to increasing inference latency.
+The long-response groups have a substantially lower rule-direct success rate. An earlier local diagnostic judge service was limited to 8,192 tokens; those judge/score artifacts are archived and excluded because overlength requests could be recorded as `No` after the official three retries. Final baseline and OPD-4B results use a 65,536-token GPT-OSS context, while preserving the pristine official judge implementation.
 
 ## Experiment Selection
 
@@ -83,8 +83,8 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 - Official inference: pristine `eval/run_eval.sh`, seed 42, temperature 0, thinking disabled, max tokens 32768, 256 workers.
 - Official scope: 10 benchmark names (core six plus MMStar, POPE, CV-Bench, and MMVP), 45,145 inference rows per model; paper alignment gate remains the six benchmarks reported in the Vision-OPD main table.
 - 10-benchmark contract SHA-256: `3ab0eadd256dcd333f9b5a2baf3aedb6c932b921a9c2d51097e5c8851147afcd`.
-- Selected evaluation provenance SHA-256: `4fdfaa6e78b89d3ad6930bf0cd7a0563b3f412dab1d05b60d258b9971f81d486`.
-- Official judge: `openai/gpt-oss-120b` with the pristine `judge_qwenlm.py`.
+- Selected evaluation provenance SHA-256: `68368c8a4b887f2b19ff75ce0b81bf75c647610514aedbeba87b8199e175667b`.
+- Official judge: `openai/gpt-oss-120b` with the pristine `judge_qwenlm.py`; judge context 65,536 tokens, sufficient for the official 32,768-token model response cap.
 - VTC generation: temperature 0.6, top-p 0.95, top-k 20, seed 1234, max tokens 40960, 30 workers.
 - VTC serving: vLLM DP8/TP1, context 65536, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser.
 - VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.
@@ -99,6 +99,7 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 - Selected evaluation provenance: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/benchmark/official_reproduction_20260717/provenance/selected_4b_eval_config.json`
 - Selected checkpoint: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/checkpoints/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4/global_step_65`
 - Selected merged model: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4`
+- Excluded 8,192-context judge diagnostics: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/benchmark/diagnostic_judge_ctx8192_20260720`
 - Final goal audit log: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/logs/vision_opd_4b_goal_completion_audit.log`
 - Final goal audit marker: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/outputs/vision_opd_4b_goal_audit_complete`
 - VTC code score: `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Code-RawAPI-Instruct-Vision-OPD-Qwen3.5-4B-released-b96-r8-official/Vision-OPD-Qwen3.5-4B-released-b96-r8-official_VTC_Bench_score.csv`
