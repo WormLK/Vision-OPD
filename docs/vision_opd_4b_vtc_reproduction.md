@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-20T18:30:40.801612+00:00
+Generated: 2026-07-20T18:37:11.478089+00:00
 
 ## Official Benchmark Alignment
 
@@ -11,12 +11,12 @@ Generated: 2026-07-20T18:30:40.801612+00:00
 | HR-Bench-4K | 84.38% | 87.50% | 84.50% | pending |
 | HR-Bench-8K | 80.13% | 83.12% | 80.38% | pending |
 | MME-RealWorld-EN | 63.86% | 63.89% | 74.88% | pending |
-| MME-RealWorld-CN | 63.70% | pending | 70.76% | pending |
+| MME-RealWorld-CN | 63.70% | 64.94% | 70.76% | pending |
 | MMStar | 78.53% | pending | 79.60% | pending |
 | POPE-Test | 88.28% | pending | 89.14% | pending |
 | CV-Bench | 87.13% | pending | 87.27% | pending |
 | MMVP | 76.67% | pending | 79.67% | pending |
-| Core-six Macro | 70.68% | pending | 77.07% | pending |
+| Core-six Macro | 70.68% | 71.84% | 77.07% | pending |
 | Local 10-benchmark unweighted mean | N/R | pending | N/R | pending |
 
 ### Paper Table 2 Hold-out Tasks
