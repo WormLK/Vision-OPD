@@ -1,23 +1,23 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-20T18:37:11.478089+00:00
+Generated: 2026-07-20T18:47:50.412394+00:00
 
 ## Official Benchmark Alignment
 
 | Benchmark | Paper Baseline 4B | Local Baseline 4B | Paper OPD-4B | Local OPD-4B |
 | --- | ---: | ---: | ---: | ---: |
-| Vstar | 84.29% | 82.72% | 92.15% | pending |
+| Vstar | 84.29% | 82.72% | 92.15% | 90.58% |
 | ZoomBench | 47.69% | 48.88% | 59.76% | pending |
 | HR-Bench-4K | 84.38% | 87.50% | 84.50% | pending |
 | HR-Bench-8K | 80.13% | 83.12% | 80.38% | pending |
 | MME-RealWorld-EN | 63.86% | 63.89% | 74.88% | pending |
 | MME-RealWorld-CN | 63.70% | 64.94% | 70.76% | pending |
-| MMStar | 78.53% | pending | 79.60% | pending |
-| POPE-Test | 88.28% | pending | 89.14% | pending |
-| CV-Bench | 87.13% | pending | 87.27% | pending |
-| MMVP | 76.67% | pending | 79.67% | pending |
+| MMStar | 78.53% | 80.00% | 79.60% | pending |
+| POPE-Test | 88.28% | 89.27% | 89.14% | pending |
+| CV-Bench | 87.13% | 87.21% | 87.27% | pending |
+| MMVP | 76.67% | 77.00% | 79.67% | pending |
 | Core-six Macro | 70.68% | 71.84% | 77.07% | pending |
-| Local 10-benchmark unweighted mean | N/R | pending | N/R | pending |
+| Local 10-benchmark unweighted mean | N/R | 76.45% | N/R | pending |
 
 ### Paper Table 2 Hold-out Tasks
 
@@ -25,10 +25,10 @@ The paper defines these four datasets as hold-out tasks that are unseen during V
 
 | Hold-out benchmark | Paper Vanilla 4B | Paper OPD-4B | Paper gain | Local Baseline 4B | Local OPD-4B |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| MMVP | 76.67% | 79.67% | +3.00 pp | pending | pending |
-| CV-Bench | 87.13% | 87.27% | +0.14 pp | pending | pending |
-| MMStar | 78.53% | 79.60% | +1.07 pp | pending | pending |
-| POPE-Test | 88.28% | 89.14% | +0.86 pp | pending | pending |
+| MMVP | 76.67% | 79.67% | +3.00 pp | 77.00% | pending |
+| CV-Bench | 87.13% | 87.27% | +0.14 pp | 87.21% | pending |
+| MMStar | 78.53% | 79.60% | +1.07 pp | 80.00% | pending |
+| POPE-Test | 88.28% | 89.14% | +0.86 pp | 89.27% | pending |
 
 ## Alignment Verdict
 
