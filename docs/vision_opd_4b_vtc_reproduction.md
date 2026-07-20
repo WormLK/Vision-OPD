@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-20T17:59:51.696691+00:00
+Generated: 2026-07-20T18:30:40.801612+00:00
 
 ## Official Benchmark Alignment
 
@@ -9,8 +9,8 @@ Generated: 2026-07-20T17:59:51.696691+00:00
 | Vstar | 84.29% | 82.72% | 92.15% | pending |
 | ZoomBench | 47.69% | 48.88% | 59.76% | pending |
 | HR-Bench-4K | 84.38% | 87.50% | 84.50% | pending |
-| HR-Bench-8K | 80.13% | pending | 80.38% | pending |
-| MME-RealWorld-EN | 63.86% | pending | 74.88% | pending |
+| HR-Bench-8K | 80.13% | 83.12% | 80.38% | pending |
+| MME-RealWorld-EN | 63.86% | 63.89% | 74.88% | pending |
 | MME-RealWorld-CN | 63.70% | pending | 70.76% | pending |
 | MMStar | 78.53% | pending | 79.60% | pending |
 | POPE-Test | 88.28% | pending | 89.14% | pending |
