@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-21T16:17:38.643405+00:00
+Generated: 2026-07-21T20:00:42.183546+00:00
 
 ## Progress Snapshot
 
@@ -8,8 +8,8 @@ Generated: 2026-07-21T16:17:38.643405+00:00
 | --- | ---: | --- |
 | Official baseline 4B | 10/10 benchmarks | complete |
 | Official OPD-4B | 10/10 benchmarks | complete |
-| VTC code-driven | 397/680 | in progress |
-| VTC interface-driven | 140/680 | in progress |
+| VTC code-driven | 437/680 | in progress |
+| VTC interface-driven | 322/680 | in progress |
 
 ## Official Benchmark Alignment
 
@@ -77,8 +77,8 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 397/680 | pending |
-| Interface-driven | 140/680 | pending |
+| Code-driven | 437/680 | pending |
+| Interface-driven | 322/680 | pending |
 
 ### Runtime Diagnostics
 
@@ -86,16 +86,16 @@ These counters are cumulative snapshots from the active strict-configuration run
 
 | Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Code-driven | 397 | 6 | 1 | 199549 | 0 |
-| Interface-driven | 140 | 0 | 0 | 9977 | 0 |
+| Code-driven | 437 | 7 | 2 | 199549 | 0 |
+| Interface-driven | 322 | 1 | 1 | 118667 | 0 |
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 655 |
+| Successful vLLM requests | 915 |
 | HTTP 400 context-length rejections | 0 |
-| Network/read timeout retry messages | 471 |
-| Invalid-answer messages | 304 |
-| Task-timeout messages | 31 |
+| Network/read timeout retry messages | 566 |
+| Invalid-answer messages | 420 |
+| Task-timeout messages | 96 |
 
 The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The agent itself permits up to 20 LLM calls per run plus final-format retries. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
 
@@ -117,6 +117,7 @@ The dominant runtime cost is retry amplification around long generations. The cl
 - Official judge: `openai/gpt-oss-120b` with the pristine `judge_qwenlm.py`; judge context 65,536 tokens, sufficient for the official 32,768-token model response cap.
 - VTC generation: temperature 0.6, top-p 0.95, top-k 20, seed 1234, max tokens 40960, 30 workers per track.
 - VTC scheduling: code-driven and interface-driven run concurrently against one shared DP8 server (60 evaluator workers total); generation and scoring settings are unchanged.
+- VTC repeated-no-tool guard: after two consecutive identical assistant responses with no native tool call and no final answer, the wrapper jumps to the agent's existing direct-answer fallback. The upstream default remains unchanged unless `QWEN_AGENT_REPEATED_NO_TOOL_LIMIT=2` is exported.
 - VTC serving: vLLM DP8/TP1, context 131072, prefix caching enabled, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.
 - VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.
 - VTC code YAML SHA-256: `405d9d97bea4b6f150ace4e93731c244d6c19309175eaa348fbf2a7226d65ad9`.

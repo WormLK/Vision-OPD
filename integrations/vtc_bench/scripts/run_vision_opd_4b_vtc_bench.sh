@@ -73,6 +73,7 @@ export PYTHONPATH="${ROOT}/eval:${ROOT}/eval/eval/VLMEvalKit"
 export QWEN_AGENT_DEFAULT_WORKSPACE="${ROOT}/runs/vtc_vision_opd_4b_workspace"
 export M6_CODE_INTERPRETER_WORK_DIR="${ROOT}/runs/vtc_vision_opd_4b_workspace/code_interpreter"
 export QWEN_AGENT_IMAGE_MAX_SHORT_SIDE="1080"
+export QWEN_AGENT_REPEATED_NO_TOOL_LIMIT="2"
 export NO_PROXY="127.0.0.1,localhost"
 export no_proxy="127.0.0.1,localhost"
 

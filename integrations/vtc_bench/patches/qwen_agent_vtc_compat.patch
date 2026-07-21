@@ -1,0 +1,347 @@
+diff --git a/eval/qwen_agent/agents/fncall_agent.py b/eval/qwen_agent/agents/fncall_agent.py
+index 7f1111f..5a437ef 100644
+--- a/eval/qwen_agent/agents/fncall_agent.py
++++ b/eval/qwen_agent/agents/fncall_agent.py
+@@ -13,18 +13,62 @@
+ # limitations under the License.
+ 
+ import copy
++import json
+ import os
+ import re
+ from typing import Dict, Iterator, List, Literal, Optional, Union
+ 
+ from qwen_agent import Agent
+ from qwen_agent.llm import BaseChatModel
+-from qwen_agent.llm.schema import DEFAULT_SYSTEM_MESSAGE, FUNCTION, ContentItem, Message
++from qwen_agent.llm.schema import DEFAULT_SYSTEM_MESSAGE, FUNCTION, ContentItem, FunctionCall, Message
+ from qwen_agent.log import logger
+ from qwen_agent.memory import Memory
+ from qwen_agent.settings import MAX_LLM_CALL_PER_RUN
+ from qwen_agent.tools import BaseTool
+-from qwen_agent.utils.utils import encode_image_as_base64, extract_files_from_messages, is_image
++from qwen_agent.utils.utils import encode_image_as_base64, extract_files_from_messages, is_image, json_loads
++
++
++VTC_TOOL_NAME_ALIASES = {
++    'adjust brightness': 'opencv_convertscaleabs',
++    'approximate polygon': 'opencv_approx_poly',
++    'binarize': 'opencv_threshold',
++    'blur': 'opencv_blur',
++    'circle detect': 'opencv_hough_circles',
++    'color filter': 'opencv_inrange_color',
++    'connected components': 'opencv_connected_components_with_stats',
++    'convert color': 'opencv_colorspace_gray',
++    'crop': 'opencv_crop',
++    'denoise': 'opencv_denoise',
++    'draw circle': 'opencv_draw_circle',
++    'draw contours': 'opencv_contours',
++    'draw line': 'opencv_draw_line',
++    'edge detect': 'opencv_canny',
++    'flip': 'opencv_flip',
++    'histogram eq': 'opencv_histogram',
++    'inpaint': 'opencv_inpaint',
++    'line detect': 'opencv_hough_lines',
++    'measure area': 'opencv_contour_area',
++    'measure perimeter': 'opencv_arc_length',
++    'morphology': 'opencv_morphology',
++    'resize': 'opencv_resize',
++    'rotate': 'opencv_rotate',
++    'sharpen': 'opencv_convertscaleabs',
++    'template match': 'opencv_template_match',
++    'watershed': 'opencv_watershed',
++    'zoom in': 'opencv_zoom_in',
++}
++
++IMAGE_ARG_ALIASES = (
++    'image_path',
++    'imagePath',
++    'input_image',
++    'input_image_path',
++    'source_image',
++    'source_image_path',
++    'path',
++    'file_path',
++    'filename',
++)
+ 
+ 
+ class FnCallAgent(Agent):
+@@ -78,7 +122,10 @@ class FnCallAgent(Agent):
+         response = []
+         num_retry = 5
+         consecutive_no_tool_count = 0  # Track consecutive rounds without tool usage
++        last_no_tool_text = None
++        repeated_no_tool_limit = int(os.getenv('QWEN_AGENT_REPEATED_NO_TOOL_LIMIT', '0'))
+         round_count = 0  # Debug: Count the rounds
++        text_tool_call_mode = os.getenv('QWEN_AGENT_TEXT_TOOL_CALL_MODE', 'false').lower() in ('1', 'true', 'yes')
+         while True and num_llm_calls_available > 0 and round_count < MAX_LLM_CALL_PER_RUN + 10:
+             round_count += 1
+             # print("ROUND_COUNT:", round_count)
+@@ -90,7 +137,7 @@ class FnCallAgent(Agent):
+                 extra_generate_cfg['seed'] = kwargs['seed']
+             
+             # 如果是 num_llm_calls_available == 0 的时候，不允许模型使用tool了 ，即 call模型的时候不传输tool
+-            if num_llm_calls_available == 0:
++            if text_tool_call_mode or num_llm_calls_available == 0:
+                 output_stream = self._call_llm(messages=messages,
+                                             functions=[],
+                                             extra_generate_cfg=extra_generate_cfg)
+@@ -146,7 +193,19 @@ class FnCallAgent(Agent):
+                 for out in output:
+                     use_tool, tool_name, tool_args, _ = self._detect_tool(out)
+                     if use_tool:
++                        tool_name, tool_args = self._normalize_tool_call(tool_name, tool_args, messages)
++                        normalized_args_text = (
++                            tool_args if isinstance(tool_args, str) else json.dumps(tool_args, ensure_ascii=False)
++                        )
++                        if out.function_call:
++                            out.function_call.name = tool_name
++                            out.function_call.arguments = normalized_args_text
++                        else:
++                            out.function_call = FunctionCall(name=tool_name, arguments=normalized_args_text)
+                         tool_result = self._call_tool(tool_name, tool_args, messages=messages, **kwargs)
++                        function_id = ((out.extra or {}).get('function_id')
++                                       or out.tool_call_id
++                                       or '1')
+                         # 处理 tool_result 中的图片路径，将其转换为 base64
+                         tool_result = self._process_tool_result_with_images(tool_result)
+ 
+@@ -204,8 +263,8 @@ class FnCallAgent(Agent):
+                             fn_msg = Message(role=FUNCTION,
+                                              name=tool_name,
+                                              content=fn_msg_content,
+-                                             tool_call_id=out.extra.get('function_id', '1'),
+-                                             extra={'function_id': out.extra.get('function_id', '1')})
++                                             tool_call_id=function_id,
++                                             extra={'function_id': function_id})
+                             messages.append(fn_msg)
+                             response.append(fn_msg)
+ 
+@@ -222,8 +281,8 @@ class FnCallAgent(Agent):
+                             fn_msg = Message(role=FUNCTION,
+                                              name=tool_name,
+                                              content=tool_result,
+-                                             tool_call_id=out.extra.get('function_id', '1'),
+-                                             extra={'function_id': out.extra.get('function_id', '1')})
++                                             tool_call_id=function_id,
++                                             extra={'function_id': function_id})
+                             messages.append(fn_msg)
+                             response.append(fn_msg)
+ 
+@@ -239,7 +298,10 @@ class FnCallAgent(Agent):
+                         yield response
+                         used_any_tool = True
+ 
+-                if not used_any_tool:
++                if used_any_tool:
++                    consecutive_no_tool_count = 0
++                    last_no_tool_text = None
++                else:
+                     # Model didn't call any tool this round
+                     # Check if the response contains a properly formatted answer
+                     has_answer_tag = False
+@@ -260,6 +322,37 @@ class FnCallAgent(Agent):
+                     if has_answer_tag:
+                         # Model provided a properly formatted answer, we can safely end
+                         break
++
++                    current_no_tool_text = "\n".join(
++                        text.strip()
++                        for text in (self._extract_message_text(msg) for msg in output)
++                        if text and text.strip()
++                    )
++                    if current_no_tool_text and current_no_tool_text == last_no_tool_text:
++                        consecutive_no_tool_count += 1
++                    else:
++                        consecutive_no_tool_count = 1 if current_no_tool_text else 0
++                        last_no_tool_text = current_no_tool_text or None
++
++                    if (repeated_no_tool_limit > 0
++                            and consecutive_no_tool_count >= repeated_no_tool_limit
++                            and num_llm_calls_available > 1):
++                        # Native tool-call failure can otherwise repeat identical intent
++                        # text for all 20 rounds. Jump to the existing final-answer path.
++                        num_llm_calls_available = 1
++                        format_prompt = Message(
++                            role='user',
++                            content=(
++                                "No tool call was emitted after repeated identical responses. "
++                                "Please answer directly in the required format:\n"
++                                "<answer>Your final answer here</answer>"
++                            )
++                        )
++                        messages.append(format_prompt)
++                        response.append(format_prompt)
++                        yield response
++                        continue
++
+                     # Force one more round with a formatting prompt
+                     if num_llm_calls_available == 0:
+                         num_llm_calls_available += 1
+@@ -283,6 +376,164 @@ class FnCallAgent(Agent):
+ 
+         yield response
+ 
++    def _detect_tool(self, message: Message) -> tuple[bool, str, str, str]:
++        use_tool, tool_name, tool_args, text = super()._detect_tool(message)
++        if use_tool:
++            return use_tool, tool_name, tool_args, text
++
++        text = self._extract_message_text(message)
++        if not text:
++            return False, None, None, ''
++
++        match = re.search(r'✿FUNCTION✿\s*:\s*([^\n]+?)\s*\n\s*✿ARGS✿\s*:\s*(.+)', text, re.DOTALL)
++        if not match:
++            return False, None, None, text
++
++        tool_name = match.group(1).strip()
++        tool_args = match.group(2).strip()
++        tool_args = re.split(r'\n\s*✿(?:RESULT|RETURN)✿\s*:', tool_args, maxsplit=1)[0].strip()
++        return True, tool_name, tool_args, text
++
++    @staticmethod
++    def _extract_message_text(message: Message) -> str:
++        content = message.content
++        if isinstance(content, str):
++            return content
++        if isinstance(content, list):
++            parts = []
++            for item in content:
++                text = getattr(item, 'text', None)
++                if text:
++                    parts.append(text)
++            return '\n'.join(parts)
++        return ''
++
++    def _normalize_tool_call(self, tool_name: str, tool_args: Union[str, dict],
++                             messages: List[Message]) -> tuple[str, Union[str, dict]]:
++        """Map VTC-Bench human tool labels/arg aliases to registered tool schemas."""
++        normalized_name = self._normalize_tool_name(tool_name)
++        normalized_args = self._normalize_tool_args(normalized_name, tool_args, messages)
++        return normalized_name, normalized_args
++
++    def _normalize_tool_name(self, tool_name: str) -> str:
++        if not tool_name:
++            return tool_name
++        if tool_name in self.function_map:
++            return tool_name
++
++        alias_key = re.sub(r'[^a-z0-9]+', ' ', tool_name.lower()).strip()
++        alias_name = VTC_TOOL_NAME_ALIASES.get(alias_key)
++        if alias_name and alias_name in self.function_map:
++            logger.info(f'Normalized VTC tool name {tool_name!r} to {alias_name!r}')
++            return alias_name
++
++        opencv_guess = 'opencv_' + alias_key.replace(' ', '_')
++        if opencv_guess in self.function_map:
++            logger.info(f'Normalized tool name {tool_name!r} to {opencv_guess!r}')
++            return opencv_guess
++        return tool_name
++
++    def _normalize_tool_args(self, tool_name: str, tool_args: Union[str, dict],
++                             messages: List[Message]) -> Union[str, dict]:
++        try:
++            if isinstance(tool_args, str):
++                if not tool_args.strip():
++                    args = {}
++                else:
++                    args = json_loads(tool_args)
++            elif isinstance(tool_args, dict):
++                args = copy.deepcopy(tool_args)
++            else:
++                return tool_args
++        except Exception:
++            return tool_args
++
++        if not isinstance(args, dict):
++            return tool_args
++
++        for alias in IMAGE_ARG_ALIASES:
++            if 'image' not in args and alias in args:
++                args['image'] = args.pop(alias)
++                break
++
++        if 'image' not in args:
++            image_paths = extract_files_from_messages(messages, include_images=True)
++            if image_paths:
++                args['image'] = image_paths[-1]
++
++        self._normalize_region_args(args)
++
++        tool = self.function_map.get(tool_name)
++        needs_param = False
++        if tool and isinstance(tool.parameters, dict):
++            needs_param = 'param' in tool.parameters.get('required', [])
++        if 'param' not in args:
++            param_keys = [key for key in list(args.keys()) if key not in ('image', 'work_dir')]
++            if param_keys:
++                args['param'] = {key: args.pop(key) for key in param_keys}
++            elif needs_param:
++                args['param'] = {}
++
++        if isinstance(args.get('param'), dict):
++            self._normalize_region_args(args['param'])
++
++        return args
++
++    @staticmethod
++    def _normalize_region_args(args: dict) -> None:
++        if any(key in args for key in ('x_min', 'y_min', 'x_max', 'y_max', 'xmin', 'ymin', 'xmax', 'ymax')):
++            x_min = args.pop('x_min', args.pop('xmin', args.get('x', 0)))
++            y_min = args.pop('y_min', args.pop('ymin', args.get('y', 0)))
++            x_max = args.pop('x_max', args.pop('xmax', None))
++            y_max = args.pop('y_max', args.pop('ymax', None))
++            args.setdefault('x', x_min)
++            args.setdefault('y', y_min)
++            if x_max is not None and 'width' not in args:
++                try:
++                    args['width'] = int(float(x_max)) - int(float(x_min))
++                except (TypeError, ValueError):
++                    pass
++            if y_max is not None and 'height' not in args:
++                try:
++                    args['height'] = int(float(y_max)) - int(float(y_min))
++                except (TypeError, ValueError):
++                    pass
++
++        if any(key in args for key in ('left', 'top', 'right', 'bottom')):
++            left = args.pop('left', args.get('x', 0))
++            top = args.pop('top', args.get('y', 0))
++            right = args.pop('right', None)
++            bottom = args.pop('bottom', None)
++            args.setdefault('x', left)
++            args.setdefault('y', top)
++            if right is not None and 'width' not in args:
++                try:
++                    args['width'] = int(float(right)) - int(float(left))
++                except (TypeError, ValueError):
++                    pass
++            if bottom is not None and 'height' not in args:
++                try:
++                    args['height'] = int(float(bottom)) - int(float(top))
++                except (TypeError, ValueError):
++                    pass
++
++        for key in ('bbox', 'box', 'crop_box', 'region', 'rectangle', 'rect'):
++            value = args.get(key)
++            if isinstance(value, (list, tuple)) and len(value) >= 4:
++                args.setdefault('x', value[0])
++                args.setdefault('y', value[1])
++                args.setdefault('width', value[2])
++                args.setdefault('height', value[3])
++                args.pop(key, None)
++                return
++            if isinstance(value, dict):
++                args.setdefault('x', value.get('x', value.get('left', 0)))
++                args.setdefault('y', value.get('y', value.get('top', 0)))
++                args.setdefault('width', value.get('width', value.get('w', value.get('right'))))
++                args.setdefault('height', value.get('height', value.get('h', value.get('bottom'))))
++                args.pop(key, None)
++                return
++
+     def _call_tool(self, tool_name: str, tool_args: Union[str, dict] = '{}', **kwargs) -> str:
+         
+         if tool_name not in self.function_map:
+

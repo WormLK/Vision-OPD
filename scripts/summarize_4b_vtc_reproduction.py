@@ -537,6 +537,7 @@ def main() -> None:
         "judge context 65,536 tokens, sufficient for the official 32,768-token model response cap.",
         "- VTC generation: temperature 0.6, top-p 0.95, top-k 20, seed 1234, max tokens 40960, 30 workers per track.",
         "- VTC scheduling: code-driven and interface-driven run concurrently against one shared DP8 server (60 evaluator workers total); generation and scoring settings are unchanged.",
+        "- VTC repeated-no-tool guard: after two consecutive identical assistant responses with no native tool call and no final answer, the wrapper jumps to the agent's existing direct-answer fallback. The upstream default remains unchanged unless `QWEN_AGENT_REPEATED_NO_TOOL_LIMIT=2` is exported.",
         "- VTC serving: vLLM DP8/TP1, context 131072, prefix caching enabled, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.",
         "- VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.",
         f"- VTC code YAML SHA-256: `{sha256(code_config)}`.",
