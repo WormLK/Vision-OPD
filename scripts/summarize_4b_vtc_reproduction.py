@@ -223,6 +223,20 @@ def main() -> None:
     interface_score_path = eval_root / interface_folder / f"{model}_VTC_Bench_score.csv"
     code_scores = read_vtc_score(code_score_path)
     interface_scores = read_vtc_score(interface_score_path)
+    code_inference = result_jsonl_status(
+        vtc / "runs" / "vtc_vision_opd_4b_step65_code", model
+    )
+    interface_inference = result_jsonl_status(
+        vtc / "runs" / "vtc_vision_opd_4b_step65_interface", model
+    )
+    baseline_complete = sum(score is not None for score in baseline_scores)
+    opd_complete = sum(score is not None for score in opd_scores)
+
+    def track_state(inference: str, scores: dict[str, float]) -> str:
+        if scores.get("Overall") is not None:
+            return "complete"
+        return "in progress" if not inference.startswith("0/") else "pending"
+
     code_config = vtc / "eval" / "eval_config" / "vision_opd_qwen35_4b_code.yaml"
     interface_config = vtc / "eval" / "eval_config" / "vision_opd_qwen35_4b_interface.yaml"
     vtc_gt = vtc / "data" / "vtc_bench" / "VTC-Bench_GTToolChain.tsv"
@@ -239,6 +253,18 @@ def main() -> None:
         "# Vision-OPD-4B Official and VTC-Bench Reproduction",
         "",
         f"Generated: {datetime.now(timezone.utc).isoformat()}",
+        "",
+        "## Progress Snapshot",
+        "",
+        "| Stage | Completed | State |",
+        "| --- | ---: | --- |",
+        f"| Official baseline 4B | {baseline_complete}/10 benchmarks | "
+        f"{'complete' if baseline_complete == 10 else 'in progress'} |",
+        f"| Official OPD-4B | {opd_complete}/10 benchmarks | "
+        f"{'complete' if opd_complete == 10 else 'in progress'} |",
+        f"| VTC code-driven | {code_inference} | {track_state(code_inference, code_scores)} |",
+        f"| VTC interface-driven | {interface_inference} | "
+        f"{track_state(interface_inference, interface_scores)} |",
         "",
         "## Official Benchmark Alignment",
         "",
@@ -394,9 +420,8 @@ def main() -> None:
         "",
         "| Track | Inference | Overall |",
         "| --- | ---: | ---: |",
-        f"| Code-driven | {result_jsonl_status(vtc / 'runs' / 'vtc_vision_opd_4b_step65_code', model)} | "
-        f"{format_score(code_scores.get('Overall'))} |",
-        f"| Interface-driven | {result_jsonl_status(vtc / 'runs' / 'vtc_vision_opd_4b_step65_interface', model)} | "
+        f"| Code-driven | {code_inference} | {format_score(code_scores.get('Overall'))} |",
+        f"| Interface-driven | {interface_inference} | "
         f"{format_score(interface_scores.get('Overall'))} |",
         "",
         "| Category | Code-driven | Interface-driven |",

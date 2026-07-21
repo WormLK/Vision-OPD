@@ -1,6 +1,15 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-21T06:15:37.790079+00:00
+Generated: 2026-07-21T10:01:55.132666+00:00
+
+## Progress Snapshot
+
+| Stage | Completed | State |
+| --- | ---: | --- |
+| Official baseline 4B | 10/10 benchmarks | complete |
+| Official OPD-4B | 10/10 benchmarks | complete |
+| VTC code-driven | 255/680 | in progress |
+| VTC interface-driven | 0/680 | pending |
 
 ## Official Benchmark Alignment
 
@@ -68,7 +77,7 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 0/680 | pending |
+| Code-driven | 255/680 | pending |
 | Interface-driven | 0/680 | pending |
 
 | Category | Code-driven | Interface-driven |
