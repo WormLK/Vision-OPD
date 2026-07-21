@@ -54,6 +54,7 @@ setsid env CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spa
     --host 127.0.0.1 --port "${PORT}" \
     --tensor-parallel-size 1 --data-parallel-size 8 \
     --max-model-len 131072 --gpu-memory-utilization 0.90 \
+    --enable-prefix-caching \
     --default-chat-template-kwargs '{"enable_thinking":true}' \
     --reasoning-parser qwen3 \
     --enable-auto-tool-choice --tool-call-parser qwen3_coder \
