@@ -53,7 +53,7 @@ setsid env CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spa
     --served-model-name "${MODEL_NAME}" \
     --host 127.0.0.1 --port "${PORT}" \
     --tensor-parallel-size 1 --data-parallel-size 8 \
-    --max-model-len 65536 --gpu-memory-utilization 0.90 \
+    --max-model-len 131072 --gpu-memory-utilization 0.90 \
     --default-chat-template-kwargs '{"enable_thinking":true}' \
     --reasoning-parser qwen3 \
     --enable-auto-tool-choice --tool-call-parser qwen3_coder \
@@ -75,35 +75,41 @@ export QWEN_AGENT_IMAGE_MAX_SHORT_SIDE="1080"
 export NO_PROXY="127.0.0.1,localhost"
 export no_proxy="127.0.0.1,localhost"
 
-echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Starting VTC code-driven 680-row evaluation."
-for attempt in $(seq 1 20); do
-  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Code-driven attempt ${attempt}."
-  "${PYTHON}" eval/VTC_Bench_Eval.py -c "${CODE_CONFIG}" --eval-method heuristic || true
-  if "${PYTHON}" scripts/validate_vision_opd_vtc_track.py \
-    --results-dir runs/vtc_vision_opd_4b_step65_code --model "${MODEL_OUTPUT_NAME}" \
-    --score-file "${CODE_SCORE}"; then
-    break
-  fi
-  sleep $((attempt < 5 ? attempt * 30 : 300))
-done
-"${PYTHON}" scripts/validate_vision_opd_vtc_track.py \
-  --results-dir runs/vtc_vision_opd_4b_step65_code --model "${MODEL_OUTPUT_NAME}" \
-  --score-file "${CODE_SCORE}"
+run_track() {
+  local label="$1" config="$2" results_dir="$3" score_file="$4"
+  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Starting VTC ${label} 680-row evaluation."
+  for attempt in $(seq 1 20); do
+    echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${label} attempt ${attempt}."
+    "${PYTHON}" eval/VTC_Bench_Eval.py -c "${config}" --eval-method heuristic || true
+    if "${PYTHON}" scripts/validate_vision_opd_vtc_track.py \
+      --results-dir "${results_dir}" --model "${MODEL_OUTPUT_NAME}" \
+      --score-file "${score_file}"; then
+      return 0
+    fi
+    sleep $((attempt < 5 ? attempt * 30 : 300))
+  done
+  "${PYTHON}" scripts/validate_vision_opd_vtc_track.py \
+    --results-dir "${results_dir}" --model "${MODEL_OUTPUT_NAME}" \
+    --score-file "${score_file}"
+}
 
-echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Starting VTC interface-driven 680-row evaluation."
-for attempt in $(seq 1 20); do
-  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Interface-driven attempt ${attempt}."
-  "${PYTHON}" eval/VTC_Bench_Eval.py -c "${INTERFACE_CONFIG}" --eval-method heuristic || true
-  if "${PYTHON}" scripts/validate_vision_opd_vtc_track.py \
-    --results-dir runs/vtc_vision_opd_4b_step65_interface --model "${MODEL_OUTPUT_NAME}" \
-    --score-file "${INTERFACE_SCORE}"; then
-    break
-  fi
-  sleep $((attempt < 5 ? attempt * 30 : 300))
-done
-"${PYTHON}" scripts/validate_vision_opd_vtc_track.py \
-  --results-dir runs/vtc_vision_opd_4b_step65_interface --model "${MODEL_OUTPUT_NAME}" \
-  --score-file "${INTERFACE_SCORE}"
+# Both tracks share the DP8 server. Each retains the reference 30-worker
+# evaluator setting, so this changes scheduling only, not model generation.
+run_track "code-driven" "${CODE_CONFIG}" \
+  runs/vtc_vision_opd_4b_step65_code "${CODE_SCORE}" &
+code_pid=$!
+run_track "interface-driven" "${INTERFACE_CONFIG}" \
+  runs/vtc_vision_opd_4b_step65_interface "${INTERFACE_SCORE}" &
+interface_pid=$!
+
+code_status=0
+interface_status=0
+wait "${code_pid}" || code_status=$?
+wait "${interface_pid}" || interface_status=$?
+if [[ "${code_status}" -ne 0 || "${interface_status}" -ne 0 ]]; then
+  echo "VTC tracks failed: code=${code_status}, interface=${interface_status}" >&2
+  exit 1
+fi
 
 touch "${ROOT}/runs/vision_opd_4b_vtc_bench_complete"
 "/data00/users/wanglikun/anaconda3/envs/vision-opd/bin/python" \

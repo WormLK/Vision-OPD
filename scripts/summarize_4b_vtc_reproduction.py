@@ -126,6 +126,41 @@ def result_jsonl_status(root: Path, model: str) -> str:
     return f"{rows}/680{suffix}"
 
 
+def result_jsonl_runtime_stats(root: Path, model: str) -> dict[str, int]:
+    model_dir = root / model
+    files = sorted(model_dir.glob("results_*.jsonl")) if model_dir.is_dir() else []
+    stats = {"rows": 0, "over_10k": 0, "over_100k": 0, "max_chars": 0, "tool_rows": 0}
+    if not files:
+        return stats
+    with files[-1].open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            stats["rows"] += 1
+            length = len(str(item.get("full_response", "")))
+            stats["max_chars"] = max(stats["max_chars"], length)
+            stats["over_10k"] += int(length >= 10_000)
+            stats["over_100k"] += int(length >= 100_000)
+            conversation = item.get("conversation") or []
+            if any(message.get("role") in {"tool", "function"} for message in conversation):
+                stats["tool_rows"] += 1
+    return stats
+
+
+def count_log_marker(path: Path, marker: str) -> int:
+    if not path.is_file():
+        return 0
+    count = 0
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            count += line.count(marker)
+    return count
+
+
 def answer_length_stats(path: Path) -> tuple[int, int, int, int]:
     lengths = []
     if path.is_file():
@@ -229,6 +264,21 @@ def main() -> None:
     interface_inference = result_jsonl_status(
         vtc / "runs" / "vtc_vision_opd_4b_step65_interface", model
     )
+    code_runtime = result_jsonl_runtime_stats(
+        vtc / "runs" / "vtc_vision_opd_4b_step65_code", model
+    )
+    interface_runtime = result_jsonl_runtime_stats(
+        vtc / "runs" / "vtc_vision_opd_4b_step65_interface", model
+    )
+    vtc_run_log = vtc / "logs" / "vision_opd_4b_vtc_bench.log"
+    vtc_vllm_log = vtc / "logs" / "vllm_vision_opd_4b_vtc.log"
+    vtc_log_counts = {
+        "network_timeouts": count_log_marker(vtc_run_log, "Network timeout"),
+        "invalid_answers": count_log_marker(vtc_run_log, "Invalid answer"),
+        "task_timeouts": count_log_marker(vtc_run_log, "Task timeout"),
+        "context_rejections": count_log_marker(vtc_vllm_log, 'HTTP/1.1" 400'),
+        "successful_requests": count_log_marker(vtc_vllm_log, 'HTTP/1.1" 200'),
+    }
     baseline_complete = sum(score is not None for score in baseline_scores)
     opd_complete = sum(score is not None for score in opd_scores)
 
@@ -424,6 +474,36 @@ def main() -> None:
         f"| Interface-driven | {interface_inference} | "
         f"{format_score(interface_scores.get('Overall'))} |",
         "",
+        "### Runtime Diagnostics",
+        "",
+        "These counters are cumulative snapshots from the active strict-configuration run. "
+        "They diagnose throughput and do not change generation or scoring parameters.",
+        "",
+        "| Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+        f"| Code-driven | {code_runtime['rows']} | {code_runtime['over_10k']} | "
+        f"{code_runtime['over_100k']} | {code_runtime['max_chars']} | {code_runtime['tool_rows']} |",
+        f"| Interface-driven | {interface_runtime['rows']} | {interface_runtime['over_10k']} | "
+        f"{interface_runtime['over_100k']} | {interface_runtime['max_chars']} | "
+        f"{interface_runtime['tool_rows']} |",
+        "",
+        "| Cumulative pipeline signal | Count |",
+        "| --- | ---: |",
+        f"| Successful vLLM requests | {vtc_log_counts['successful_requests']} |",
+        f"| HTTP 400 context-length rejections | {vtc_log_counts['context_rejections']} |",
+        f"| Network/read timeout retry messages | {vtc_log_counts['network_timeouts']} |",
+        f"| Invalid-answer messages | {vtc_log_counts['invalid_answers']} |",
+        f"| Task-timeout messages | {vtc_log_counts['task_timeouts']} |",
+        "",
+        "The dominant runtime cost is retry amplification around long generations. The client "
+        "and evaluator task timeouts are 3,600 seconds, and each "
+        "row permits three evaluator attempts. The agent itself permits up to 20 LLM calls per "
+        "run plus final-format retries. The earlier 65,536-context server rejected requests when "
+        "the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that "
+        "limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. "
+        "Zero or few completed rows with tool messages indicates a model tool-use "
+        "adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.",
+        "",
         "| Category | Code-driven | Interface-driven |",
         "| --- | ---: | ---: |",
     ]
@@ -455,8 +535,9 @@ def main() -> None:
         f"- Selected evaluation provenance SHA-256: `{sha256(eval_provenance)}`.",
         "- Official judge: `openai/gpt-oss-120b` with the pristine `judge_qwenlm.py`; "
         "judge context 65,536 tokens, sufficient for the official 32,768-token model response cap.",
-        "- VTC generation: temperature 0.6, top-p 0.95, top-k 20, seed 1234, max tokens 40960, 30 workers.",
-        "- VTC serving: vLLM DP8/TP1, context 65536, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser.",
+        "- VTC generation: temperature 0.6, top-p 0.95, top-k 20, seed 1234, max tokens 40960, 30 workers per track.",
+        "- VTC scheduling: code-driven and interface-driven run concurrently against one shared DP8 server (60 evaluator workers total); generation and scoring settings are unchanged.",
+        "- VTC serving: vLLM DP8/TP1, context 131072, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.",
         "- VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.",
         f"- VTC code YAML SHA-256: `{sha256(code_config)}`.",
         f"- VTC interface YAML SHA-256: `{sha256(interface_config)}`.",
