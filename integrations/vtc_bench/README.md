@@ -33,5 +33,11 @@ The optional Qwen-Agent patch is activated only by the launcher export
 intent text and enters the agent's existing final-answer fallback. Normal tool
 calls and non-repeating reasoning retain the upstream 20-call allowance.
 
+For the deadline-driven resumed tail, the launcher also exports
+`QWEN_AGENT_MAX_LLM_CALL_PER_RUN=4`. The first three calls continue to expose
+tools and the fourth uses the upstream direct-answer fallback. Remove this
+export to reproduce the unmodified 20-call protocol; the final report records
+that the completed local run mixes the original prefix with this tail policy.
+
 Dataset images, TSV files, run directories, and VLMEvalKit outputs are not
 vendored in this repository.
