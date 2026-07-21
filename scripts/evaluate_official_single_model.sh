@@ -96,6 +96,17 @@ judge_complete() {
     "${path}" >/dev/null
 }
 
+repair_judge() {
+  local benchmark="$1" tag="$2"
+  local path="${OFFICIAL_ROOT}/judge/${benchmark}/${tag}_answer.jsonl"
+  [[ -s "${path}" ]] || return 1
+  python "${PROJECT_ROOT}/scripts/repair_invalid_official_judge.py" \
+    --judge-json "${path}" --judge-script "${EVAL_DIR}/judge_qwenlm.py" \
+    --api-base "http://127.0.0.1:${JUDGE_PORT}/v1/" \
+    --api-key EMPTY --judge-model "${JUDGE_NAME}" --judge-max-tokens 2048 \
+    >> "${LOG_DIR}/official_eval_${SERVED_MODEL_NAME}.log" 2>&1
+}
+
 python "${PROJECT_ROOT}/scripts/validate_gpt_oss_judge.py" "${JUDGE_PATH}"
 
 setsid env CUDA_VISIBLE_DEVICES=6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn \
@@ -120,6 +131,9 @@ wait_for_server "${MODEL_PORT}" "${SERVED_MODEL_NAME}"
 tag="${SERVED_MODEL_NAME}_seed42"
 IFS=',' read -r -a benchmark_array <<< "${BENCHMARKS}"
 for benchmark in "${benchmark_array[@]}"; do
+  # The official judge writes only after an entire benchmark. Repair a tiny
+  # number of malformed labels in-place so a restart does not recompute all.
+  repair_judge "${benchmark}" "${tag}" || true
   if judge_complete "${benchmark}" "${tag}"; then
     printf '[%s] Reusing complete judge output for %s/%s.\n' \
       "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "${SERVED_MODEL_NAME}" "${benchmark}" \
@@ -135,6 +149,7 @@ for benchmark in "${benchmark_array[@]}"; do
     JUDGE_MODEL="${JUDGE_NAME}" JUDGE_MAX_TOKENS=2048 \
       bash "${EVAL_DIR}/run_eval.sh" \
       >> "${LOG_DIR}/official_eval_${SERVED_MODEL_NAME}.log" 2>&1
+    repair_judge "${benchmark}" "${tag}"
     judge_complete "${benchmark}" "${tag}"
   fi
   answer="${OFFICIAL_ROOT}/model_answer/${benchmark}/${tag}_answer.jsonl"
