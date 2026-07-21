@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-21T04:10:45.397134+00:00
+Generated: 2026-07-21T06:15:37.790079+00:00
 
 ## Official Benchmark Alignment
 
@@ -11,13 +11,13 @@ Generated: 2026-07-21T04:10:45.397134+00:00
 | HR-Bench-4K | 84.38% | 87.50% | 84.50% | 81.38% |
 | HR-Bench-8K | 80.13% | 83.12% | 80.38% | 78.00% |
 | MME-RealWorld-EN | 63.86% | 63.89% | 74.88% | 70.35% |
-| MME-RealWorld-CN | 63.70% | 64.94% | 70.76% | pending |
-| MMStar | 78.53% | 80.00% | 79.60% | pending |
-| POPE-Test | 88.28% | 89.27% | 89.14% | pending |
-| CV-Bench | 87.13% | 87.21% | 87.27% | pending |
-| MMVP | 76.67% | 77.00% | 79.67% | pending |
-| Core-six Macro | 70.68% | 71.84% | 77.07% | pending |
-| Local 10-benchmark unweighted mean | N/R | 76.45% | N/R | pending |
+| MME-RealWorld-CN | 63.70% | 64.94% | 70.76% | 70.03% |
+| MMStar | 78.53% | 80.00% | 79.60% | 75.07% |
+| POPE-Test | 88.28% | 89.27% | 89.14% | 89.47% |
+| CV-Bench | 87.13% | 87.21% | 87.27% | 85.68% |
+| MMVP | 76.67% | 77.00% | 79.67% | 78.00% |
+| Core-six Macro | 70.68% | 71.84% | 77.07% | 74.48% |
+| Local 10-benchmark unweighted mean | N/R | 76.45% | N/R | 77.51% |
 
 ### Paper Table 2 Hold-out Tasks
 
@@ -25,14 +25,16 @@ The paper defines these four datasets as hold-out tasks that are unseen during V
 
 | Hold-out benchmark | Paper Vanilla 4B | Paper OPD-4B | Paper gain | Local Baseline 4B | Local OPD-4B |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| MMVP | 76.67% | 79.67% | +3.00 pp | 77.00% | pending |
-| CV-Bench | 87.13% | 87.27% | +0.14 pp | 87.21% | pending |
-| MMStar | 78.53% | 79.60% | +1.07 pp | 80.00% | pending |
-| POPE-Test | 88.28% | 89.14% | +0.86 pp | 89.27% | pending |
+| MMVP | 76.67% | 79.67% | +3.00 pp | 77.00% | 78.00% |
+| CV-Bench | 87.13% | 87.27% | +0.14 pp | 87.21% | 85.68% |
+| MMStar | 78.53% | 79.60% | +1.07 pp | 80.00% | 75.07% |
+| POPE-Test | 88.28% | 89.14% | +0.86 pp | 89.27% | 89.47% |
 
 ## Alignment Verdict
 
-The official core-six evaluation is still incomplete. The final alignment verdict will be generated after all inference and GPT-OSS judging artifacts validate.
+Result: **NOT ALIGNED** under the documented local gate of +/-2.0 pp for the core-six macro and +/-3.0 pp per benchmark.
+Local baseline macro is 71.84% (+1.16 pp versus paper baseline); local OPD macro is 74.48% (-2.58 pp versus paper OPD and +2.64 pp versus the local baseline).
+Per-benchmark deviations outside the gate: ZoomBench (-3.19 pp), HR-Bench-4K (-3.12 pp), MME-RealWorld-EN (-4.53 pp).
 
 ## Inference Behavior
 
@@ -43,7 +45,7 @@ Character length is reported because the selected checkpoint produced unusually 
 | Local baseline 4B | MME-RealWorld-EN | 23609 | 1934 | 153522 | 282 |
 | Local baseline 4B | MME-RealWorld-CN | 5462 | 433 | 60847 | 37 |
 | Local OPD-4B | MME-RealWorld-EN | 23609 | 94037 | 186291 | 1467 |
-| Local OPD-4B | MME-RealWorld-CN | 994 | 166 | 665 | 0 |
+| Local OPD-4B | MME-RealWorld-CN | 5462 | 421 | 65517 | 161 |
 
 ### Interim MME-RealWorld-EN Snapshot
 
