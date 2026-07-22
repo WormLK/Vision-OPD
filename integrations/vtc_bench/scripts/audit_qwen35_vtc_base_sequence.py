@@ -45,6 +45,16 @@ def main() -> None:
     report_text = report.read_text(encoding="utf-8")
     marker_times = []
 
+    subprocess.run(
+        [
+            sys.executable,
+            str(project / "scripts/validate_vtc_base_configs.py"),
+            "--vtc-root",
+            str(vtc),
+        ],
+        check=True,
+    )
+
     for label, marker_name, model, run_name in TRACKS:
         marker = vtc / "runs" / f"{marker_name}_complete"
         if not marker.is_file():
