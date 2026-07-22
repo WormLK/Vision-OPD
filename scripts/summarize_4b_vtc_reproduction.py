@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib.metadata
 import importlib.util
 import json
 import re
@@ -107,6 +108,13 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def distribution_version(name: str) -> str:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return "not-installed"
 
 
 def processor_summary(path: Path) -> str:
@@ -294,6 +302,12 @@ def main() -> None:
     output = args.output or project / "docs" / "vision_opd_4b_vtc_reproduction.md"
     official = project / "benchmark" / "official_reproduction_20260717"
     results = official / "results"
+    runtime_versions = {
+        "vllm": distribution_version("vllm"),
+        "transformers": distribution_version("transformers"),
+        "torch": distribution_version("torch"),
+        "openai": distribution_version("openai"),
+    }
 
     baseline_scores = [read_official_score(results, BASELINE_MODEL, item[0]) for item in BENCHMARKS]
     opd_scores = [read_official_score(results, OPD_MODEL, item[0]) for item in BENCHMARKS]
@@ -659,7 +673,10 @@ def main() -> None:
         "| Server context | 65,536 tokens; sufficient for one image plus 40,960 output tokens |",
         "| Processor | Qwen-Agent image base64 adapter; max short side 1,080; then each model's native Qwen3.5 processor |",
         "| Chat template | Explicit original model-native Qwen3.5 Jinja file |",
-        "| vLLM | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |",
+        f"| Runtime | vLLM {runtime_versions['vllm']}, Transformers "
+        f"{runtime_versions['transformers']}, Torch {runtime_versions['torch']}, OpenAI client "
+        f"{runtime_versions['openai']} |",
+        "| vLLM options | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |",
         "",
         "Exact Strong System Prompt:",
         "",

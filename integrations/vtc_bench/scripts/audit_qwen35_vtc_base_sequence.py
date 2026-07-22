@@ -105,6 +105,7 @@ def main() -> None:
         "Exact User Prompt template (without GT Toolchains)",
         "Explicit original model-native Qwen3.5 Jinja file",
         "Qwen-Agent image base64 adapter; max short side 1,080",
+        "vLLM options",
         "prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90",
     ):
         if required not in report_text:

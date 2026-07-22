@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T16:42:27.684969+00:00
+Generated: 2026-07-22T16:45:45.287486+00:00
 
 ## Progress Snapshot
 
@@ -114,7 +114,8 @@ The paper's Qwen3-VL Thinking recipe is used because all three local Qwen3.5 run
 | Server context | 65,536 tokens; sufficient for one image plus 40,960 output tokens |
 | Processor | Qwen-Agent image base64 adapter; max short side 1,080; then each model's native Qwen3.5 processor |
 | Chat template | Explicit original model-native Qwen3.5 Jinja file |
-| vLLM | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |
+| Runtime | vLLM 0.18.0, Transformers 5.5.0, Torch 2.10.0, OpenAI client 2.24.0 |
+| vLLM options | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |
 
 Exact Strong System Prompt:
 
@@ -255,7 +256,7 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 1955 |
+| Successful vLLM requests | 1961 |
 | HTTP 400 context-length rejections | 0 |
 | Network/read timeout retry messages | 887 |
 | Invalid-answer messages | 646 |
