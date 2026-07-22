@@ -75,3 +75,12 @@ Qwen3.5-4B `chat_template.jinja`; the two baselines use the template in their
 own model directories. This is intentional because the merged OPD directory's
 saved template differs from the original backbone template, while this Base
 comparison requires the native Qwen3.5 prompting contract.
+
+Validate the locked configuration and the positive/negative result-audit paths
+without loading a model:
+
+```bash
+python scripts/validate_vtc_base_configs.py \
+  --vtc-root /data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab
+python scripts/test_vtc_base_validator.py
+```
