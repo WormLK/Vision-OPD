@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from pathlib import Path
 
 import yaml
@@ -36,6 +37,29 @@ def main() -> None:
     root = args.vtc_root.resolve()
     config_root = root / "eval/eval_config"
     expected_tsv = (root / "data/vtc_bench/VTC-Bench.absolute.tsv").resolve()
+    header = expected_tsv.open(encoding="utf-8").readline().rstrip("\n").split("\t")
+    if "model_tools_gt" in header or "reference_trajectory" in header:
+        raise RuntimeError("Base TSV must not expose a GT toolchain or reference trajectory")
+
+    source_path = root / "eval/VTC_Bench_Eval.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+    direct_classes = [
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "DirectAnswerAgent"
+    ]
+    if len(direct_classes) != 1:
+        raise RuntimeError("VTC evaluator must define exactly one DirectAnswerAgent")
+    direct_calls = [
+        node
+        for node in ast.walk(direct_classes[0])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_call_llm"
+    ]
+    if len(direct_calls) != 1:
+        raise RuntimeError("DirectAnswerAgent must make exactly one static _call_llm call")
+    functions = next((kw.value for kw in direct_calls[0].keywords if kw.arg == "functions"), None)
+    if not isinstance(functions, ast.List) or functions.elts:
+        raise RuntimeError("DirectAnswerAgent must statically pass functions=[]")
     reference_system = yaml.safe_load(
         (config_root / "vision_opd_qwen35_4b_code.yaml").read_text(encoding="utf-8")
     )["agent"]["system_prompt"]
