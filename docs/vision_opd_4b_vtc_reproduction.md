@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-21T23:21:57.221407+00:00
+Generated: 2026-07-22T05:40:47.524927+00:00
 
 ## Progress Snapshot
 
@@ -8,8 +8,8 @@ Generated: 2026-07-21T23:21:57.221407+00:00
 | --- | ---: | --- |
 | Official baseline 4B | 10/10 benchmarks | complete |
 | Official OPD-4B | 10/10 benchmarks | complete |
-| VTC code-driven | 475/680 | in progress |
-| VTC interface-driven | 427/680 | in progress |
+| VTC code-driven | 580/680 | in progress |
+| VTC interface-driven | 654/680 | in progress |
 
 ## Official Benchmark Alignment
 
@@ -77,27 +77,27 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 475/680 | pending |
-| Interface-driven | 427/680 | pending |
+| Code-driven | 580/680 | pending |
+| Interface-driven | 654/680 | pending |
 
 ### Runtime Diagnostics
 
-These counters are cumulative snapshots from the active strict-configuration run. They diagnose throughput and do not change generation or scoring parameters.
+These counters are cumulative snapshots from the active documented run. They diagnose throughput and do not change generation or scoring parameters.
 
 | Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Code-driven | 475 | 10 | 2 | 199549 | 0 |
-| Interface-driven | 427 | 3 | 1 | 118667 | 0 |
+| Code-driven | 580 | 11 | 3 | 199549 | 0 |
+| Interface-driven | 654 | 3 | 1 | 118667 | 0 |
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 276 |
+| Successful vLLM requests | 3448 |
 | HTTP 400 context-length rejections | 0 |
-| Network/read timeout retry messages | 665 |
-| Invalid-answer messages | 452 |
-| Task-timeout messages | 179 |
+| Network/read timeout retry messages | 798 |
+| Invalid-answer messages | 570 |
+| Task-timeout messages | 318 |
 
-The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The agent itself permits up to 20 LLM calls per run plus final-format retries. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
+The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls per run plus final-format retries; the resumed tail deviation is recorded below. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
 
 | Category | Code-driven | Interface-driven |
 | --- | ---: | ---: |

@@ -476,7 +476,7 @@ def main() -> None:
         "",
         "### Runtime Diagnostics",
         "",
-        "These counters are cumulative snapshots from the active strict-configuration run. "
+        "These counters are cumulative snapshots from the active documented run. "
         "They diagnose throughput and do not change generation or scoring parameters.",
         "",
         "| Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |",
@@ -497,8 +497,9 @@ def main() -> None:
         "",
         "The dominant runtime cost is retry amplification around long generations. The client "
         "and evaluator task timeouts are 3,600 seconds, and each "
-        "row permits three evaluator attempts. The agent itself permits up to 20 LLM calls per "
-        "run plus final-format retries. The earlier 65,536-context server rejected requests when "
+        "row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls "
+        "per run plus final-format retries; the resumed tail deviation is recorded below. The "
+        "earlier 65,536-context server rejected requests when "
         "the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that "
         "limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. "
         "Zero or few completed rows with tool messages indicates a model tool-use "
