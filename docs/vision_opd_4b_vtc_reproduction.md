@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T16:34:47.472748+00:00
+Generated: 2026-07-22T16:42:27.684969+00:00
 
 ## Progress Snapshot
 
@@ -208,6 +208,14 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm ser
 
 Shared evaluator environment: `PYTHONPATH=<VTC>/eval:<VTC>/eval/eval/VLMEvalKit`, `QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, `NO_PROXY=127.0.0.1,localhost`; Qwen-Agent tool-loop/workspace overrides and `VTC_FORCE_OPTION_LETTER` are explicitly unset.
 
+Serving rationale:
+
+- The two 4B models use TP1 so each replica remains an unsharded model, allowing eight data-parallel replicas on eight L40S GPUs. The identical topology makes the trained-versus-baseline 4B comparison operationally matched.
+- The 9B baseline uses TP2/DP4 to reserve enough per-replica memory for the vision encoder, a 65,536-token context and long generation KV cache while still exposing four independent replicas. Tensor parallelism changes serving placement, not the weights or sampling contract.
+- A 65,536-token server context retains 24,576 tokens beyond the fixed 40,960-token output allowance. Base is one-shot and has no accumulated tool history; the model processor caps an image at 16,777,216 pixels, so this is sufficient for the bounded image plus prompt while using materially less KV-cache memory than 131,072.
+- Qwen-Agent bounds the image short side at 1,080 before base64 transport. This matches the local code/interface input adapter, limits CPU/network amplification, and leaves the model-native processor responsible for patching, normalization and its pixel cap.
+- Prefix caching is a throughput optimization for the shared Strong System Prompt. It does not alter tokenization or generated-token sampling.
+
 ### Partial Heuristic Snapshot
 
 Snapshot generated at `2026-07-22T07:55:06.883924+00:00` from the latest cumulative JSONL files. Scoring reuses the public `VTCBenchDataset.evaluate(..., model="exact_matching")` path; both track results were independently checked against direct calls to the same official per-item rule.
@@ -247,11 +255,11 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 1949 |
+| Successful vLLM requests | 1955 |
 | HTTP 400 context-length rejections | 0 |
 | Network/read timeout retry messages | 887 |
 | Invalid-answer messages | 646 |
-| Task-timeout messages | 446 |
+| Task-timeout messages | 447 |
 
 The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls per run plus final-format retries; the resumed tail deviation is recorded below. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
 

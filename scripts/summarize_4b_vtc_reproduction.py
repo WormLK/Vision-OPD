@@ -720,6 +720,25 @@ def main() -> None:
         "`QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, "
         "`NO_PROXY=127.0.0.1,localhost`; Qwen-Agent tool-loop/workspace overrides and "
         "`VTC_FORCE_OPTION_LETTER` are explicitly unset.",
+        "",
+        "Serving rationale:",
+        "",
+        "- The two 4B models use TP1 so each replica remains an unsharded model, allowing "
+        "eight data-parallel replicas on eight L40S GPUs. The identical topology makes the "
+        "trained-versus-baseline 4B comparison operationally matched.",
+        "- The 9B baseline uses TP2/DP4 to reserve enough per-replica memory for the vision "
+        "encoder, a 65,536-token context and long generation KV cache while still exposing four "
+        "independent replicas. Tensor parallelism changes serving placement, not the weights or "
+        "sampling contract.",
+        "- A 65,536-token server context retains 24,576 tokens beyond the fixed 40,960-token "
+        "output allowance. Base is one-shot and has no accumulated tool history; the model "
+        "processor caps an image at 16,777,216 pixels, so this is sufficient for the bounded "
+        "image plus prompt while using materially less KV-cache memory than 131,072.",
+        "- Qwen-Agent bounds the image short side at 1,080 before base64 transport. This matches "
+        "the local code/interface input adapter, limits CPU/network amplification, and leaves "
+        "the model-native processor responsible for patching, normalization and its pixel cap.",
+        "- Prefix caching is a throughput optimization for the shared Strong System Prompt. It "
+        "does not alter tokenization or generated-token sampling.",
     ]
 
     if partial_scores:
