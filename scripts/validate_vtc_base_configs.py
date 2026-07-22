@@ -70,6 +70,17 @@ def main() -> None:
     )
     if '--chat-template "${chat_template}"' not in runner_text:
         raise RuntimeError("Base vLLM launcher must pass an explicit native chat template")
+    for variable in (
+        "QWEN_AGENT_REPEATED_NO_TOOL_LIMIT",
+        "QWEN_AGENT_MAX_LLM_CALL_PER_RUN",
+        "QWEN_AGENT_STOP_ON_FINAL_ANSWER",
+        "QWEN_AGENT_TEXT_TOOL_CALL_MODE",
+        "VTC_FORCE_OPTION_LETTER",
+        "QWEN_AGENT_DEFAULT_WORKSPACE",
+        "M6_CODE_INTERPRETER_WORK_DIR",
+    ):
+        if f"unset {variable}" not in runner_text:
+            raise RuntimeError(f"Base launcher must clear inherited runtime override: {variable}")
     for template in native_templates:
         if not template.is_file() or str(template) not in runner_text:
             raise RuntimeError(f"missing native Qwen3.5 chat-template binding: {template}")

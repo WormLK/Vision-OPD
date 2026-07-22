@@ -718,7 +718,8 @@ def main() -> None:
         "Shared evaluator environment: "
         "`PYTHONPATH=<VTC>/eval:<VTC>/eval/eval/VLMEvalKit`, "
         "`QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, "
-        "`NO_PROXY=127.0.0.1,localhost`; no Qwen-Agent tool-loop override variables are set.",
+        "`NO_PROXY=127.0.0.1,localhost`; Qwen-Agent tool-loop/workspace overrides and "
+        "`VTC_FORCE_OPTION_LETTER` are explicitly unset.",
     ]
 
     if partial_scores:

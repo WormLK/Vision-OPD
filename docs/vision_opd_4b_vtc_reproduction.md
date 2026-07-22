@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T16:32:11.398730+00:00
+Generated: 2026-07-22T16:34:47.472748+00:00
 
 ## Progress Snapshot
 
@@ -206,7 +206,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm ser
   --reasoning-parser qwen3 --trust-remote-code
 ```
 
-Shared evaluator environment: `PYTHONPATH=<VTC>/eval:<VTC>/eval/eval/VLMEvalKit`, `QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, `NO_PROXY=127.0.0.1,localhost`; no Qwen-Agent tool-loop override variables are set.
+Shared evaluator environment: `PYTHONPATH=<VTC>/eval:<VTC>/eval/eval/VLMEvalKit`, `QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, `NO_PROXY=127.0.0.1,localhost`; Qwen-Agent tool-loop/workspace overrides and `VTC_FORCE_OPTION_LETTER` are explicitly unset.
 
 ### Partial Heuristic Snapshot
 
@@ -247,7 +247,7 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 1944 |
+| Successful vLLM requests | 1949 |
 | HTTP 400 context-length rejections | 0 |
 | Network/read timeout retry messages | 887 |
 | Invalid-answer messages | 646 |
