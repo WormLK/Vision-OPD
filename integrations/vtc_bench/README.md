@@ -69,3 +69,9 @@ is locked to temperature 0.6, top-p 0.95, top-k 20, repetition penalty 1.0,
 presence penalty 0, 40,960 output tokens, and seed 1234. The final audit checks
 680 unique successful rows, the no-tool/one-user-turn protocol, heuristic score
 files, serial order, and the generated report.
+
+The launcher passes `--chat-template` explicitly. OPD-4B uses the original
+Qwen3.5-4B `chat_template.jinja`; the two baselines use the template in their
+own model directories. This is intentional because the merged OPD directory's
+saved template differs from the original backbone template, while this Base
+comparison requires the native Qwen3.5 prompting contract.

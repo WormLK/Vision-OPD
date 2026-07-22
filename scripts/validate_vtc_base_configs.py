@@ -60,6 +60,28 @@ def main() -> None:
     functions = next((kw.value for kw in direct_calls[0].keywords if kw.arg == "functions"), None)
     if not isinstance(functions, ast.List) or functions.elts:
         raise RuntimeError("DirectAnswerAgent must statically pass functions=[]")
+
+    project = Path(__file__).resolve().parents[1]
+    runner = project / "integrations/vtc_bench/scripts/run_qwen35_vtc_base_sequence.sh"
+    runner_text = runner.read_text(encoding="utf-8")
+    native_templates = (
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja"),
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/chat_template.jinja"),
+    )
+    if '--chat-template "${chat_template}"' not in runner_text:
+        raise RuntimeError("Base vLLM launcher must pass an explicit native chat template")
+    for template in native_templates:
+        if not template.is_file() or str(template) not in runner_text:
+            raise RuntimeError(f"missing native Qwen3.5 chat-template binding: {template}")
+    processor_configs = (
+        project
+        / "merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4/processor_config.json",
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/preprocessor_config.json"),
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/preprocessor_config.json"),
+    )
+    for processor in processor_configs:
+        if not processor.is_file():
+            raise RuntimeError(f"missing model-native processor config: {processor}")
     reference_system = yaml.safe_load(
         (config_root / "vision_opd_qwen35_4b_code.yaml").read_text(encoding="utf-8")
     )["agent"]["system_prompt"]

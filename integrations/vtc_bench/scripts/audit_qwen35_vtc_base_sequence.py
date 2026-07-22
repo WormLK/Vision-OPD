@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import re
 import subprocess
 import sys
@@ -31,6 +32,14 @@ TRACKS = (
         "vtc_qwen35_9b_base",
     ),
 )
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def main() -> None:
@@ -94,10 +103,24 @@ def main() -> None:
         "functions=[]",
         "Exact Strong System Prompt",
         "Exact User Prompt template (without GT Toolchains)",
-        "Model-native Qwen3.5 template",
+        "Explicit original model-native Qwen3.5 Jinja file",
+        "Qwen-Agent image base64 adapter; max short side 1,080",
+        "prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90",
     ):
         if required not in report_text:
             raise RuntimeError(f"final report is missing protocol record: {required}")
+    artifact_paths = (
+        project
+        / "merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4/processor_config.json",
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/preprocessor_config.json"),
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/preprocessor_config.json"),
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja"),
+        Path("/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/chat_template.jinja"),
+    )
+    for artifact in artifact_paths:
+        digest = sha256(artifact)
+        if digest not in report_text:
+            raise RuntimeError(f"final report is missing artifact SHA-256 for {artifact}")
     print("PASS Qwen3.5 VTC Base sequence: OPD-4B -> baseline 4B -> baseline 9B")
 
 

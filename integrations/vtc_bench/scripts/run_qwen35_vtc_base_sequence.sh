@@ -76,7 +76,7 @@ trap 'exit 143' TERM
 
 run_model() {
   local label="$1" model_path="$2" model_name="$3" config="$4"
-  local results_dir="$5" tp="$6" dp="$7"
+  local results_dir="$5" tp="$6" dp="$7" chat_template="$8"
   local marker="${ROOT}/runs/${label}_complete"
   local score_file="${ROOT}/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-${model_name}/${model_name}_VTC_Bench_score.csv"
   local server_log="${LOG_DIR}/vllm_${label}.log"
@@ -93,6 +93,7 @@ run_model() {
       --tensor-parallel-size "${tp}" --data-parallel-size "${dp}" \
       --max-model-len 65536 --gpu-memory-utilization 0.90 \
       --enable-prefix-caching \
+      --chat-template "${chat_template}" \
       --default-chat-template-kwargs '{"enable_thinking":true}' \
       --reasoning-parser qwen3 --trust-remote-code > "${server_log}" 2>&1 &
   server_pid=$!
@@ -126,21 +127,24 @@ run_model \
   "${OPD_ROOT}/merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4" \
   "Vision-OPD-Qwen3.5-4B-released-b96-r8-base" \
   "${ROOT}/eval/eval_config/vision_opd_qwen35_4b_base.yaml" \
-  "${ROOT}/runs/vtc_vision_opd_4b_step65_base" 1 8
+  "${ROOT}/runs/vtc_vision_opd_4b_step65_base" 1 8 \
+  "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja"
 
 run_model \
   "qwen35_4b_base" \
   "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B" \
   "Qwen3.5-4B-base-vtc" \
   "${ROOT}/eval/eval_config/qwen35_4b_base.yaml" \
-  "${ROOT}/runs/vtc_qwen35_4b_base" 1 8
+  "${ROOT}/runs/vtc_qwen35_4b_base" 1 8 \
+  "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja"
 
 run_model \
   "qwen35_9b_base" \
   "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b" \
   "Qwen3.5-9B-base-vtc" \
   "${ROOT}/eval/eval_config/qwen35_9b_base.yaml" \
-  "${ROOT}/runs/vtc_qwen35_9b_base" 2 4
+  "${ROOT}/runs/vtc_qwen35_9b_base" 2 4 \
+  "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/chat_template.jinja"
 
 update_report
 "/data00/users/wanglikun/anaconda3/envs/vision-opd/bin/python" \

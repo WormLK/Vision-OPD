@@ -48,6 +48,9 @@ BASE_TRACKS = (
         "vtc_vision_opd_4b_step65_base",
         "vision_opd_qwen35_4b_base.yaml",
         "DP8 / TP1",
+        "merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4",
+        "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja",
+        "processor_config.json",
     ),
     (
         "Local Qwen3.5-4B Base",
@@ -55,6 +58,9 @@ BASE_TRACKS = (
         "vtc_qwen35_4b_base",
         "qwen35_4b_base.yaml",
         "DP8 / TP1",
+        "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B",
+        "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja",
+        "preprocessor_config.json",
     ),
     (
         "Local Qwen3.5-9B Base",
@@ -62,6 +68,9 @@ BASE_TRACKS = (
         "vtc_qwen35_9b_base",
         "qwen35_9b_base.yaml",
         "DP4 / TP2",
+        "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b",
+        "/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/chat_template.jinja",
+        "preprocessor_config.json",
     ),
 )
 
@@ -283,10 +292,23 @@ def main() -> None:
     code_scores = read_vtc_score(code_score_path)
     interface_scores = read_vtc_score(interface_score_path)
     base_tracks = []
-    for label, base_model, run_name, config_name, topology in BASE_TRACKS:
+    for (
+        label,
+        base_model,
+        run_name,
+        config_name,
+        topology,
+        model_path_value,
+        chat_template_value,
+        processor_filename,
+    ) in BASE_TRACKS:
         folder = f"Qwen-Agent-Base-RawAPI-Instruct-{base_model}"
         score_path = eval_root / folder / f"{base_model}_VTC_Bench_score.csv"
         config_path = vtc / "eval" / "eval_config" / config_name
+        model_path = Path(model_path_value)
+        if not model_path.is_absolute():
+            model_path = project / model_path
+        chat_template_path = Path(chat_template_value)
         valid, errors = result_jsonl_status(vtc / "runs" / run_name, base_model)
         base_tracks.append(
             {
@@ -299,6 +321,9 @@ def main() -> None:
                 if config_path.is_file()
                 else {},
                 "topology": topology,
+                "model_path": model_path,
+                "processor_path": model_path / processor_filename,
+                "chat_template_path": chat_template_path,
                 "valid": valid,
                 "errors": errors,
                 "scores": read_vtc_score(score_path),
@@ -617,7 +642,7 @@ def main() -> None:
         "| Evaluator | 30 workers, resume enabled, up to 20 full-run attempts |",
         "| Server context | 65,536 tokens; sufficient for one image plus 40,960 output tokens |",
         "| Processor | Qwen-Agent image base64 adapter; max short side 1,080; then each model's native Qwen3.5 processor |",
-        "| Chat template | Model-native Qwen3.5 template; no custom template file |",
+        "| Chat template | Explicit original model-native Qwen3.5 Jinja file |",
         "| vLLM | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |",
         "",
         "Exact Strong System Prompt:",
@@ -634,7 +659,16 @@ def main() -> None:
         "",
         "Per-model reproducibility artifacts:",
         "",
+        "| Model | Model path | Processor config SHA-256 | Native chat template SHA-256 | Server |",
+        "| --- | --- | --- | --- | --- |",
     ]
+    for track in base_tracks:
+        lines.append(
+            f"| {track['label']} | `{track['model_path']}` | "
+            f"`{sha256(track['processor_path'])}` | "
+            f"`{sha256(track['chat_template_path'])}` | {track['topology']}, context 65,536 |"
+        )
+    lines += ["", "Config and score paths:", ""]
     for track in base_tracks:
         lines.append(
             f"- {track['label']}: config `{track['config_path']}` "
