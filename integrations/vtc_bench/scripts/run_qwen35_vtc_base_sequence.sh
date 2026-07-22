@@ -29,11 +29,6 @@ update_report() {
 "/data00/users/wanglikun/anaconda3/envs/vision-opd/bin/python" \
   "${OPD_ROOT}/scripts/validate_vtc_base_configs.py" --vtc-root "${ROOT}"
 
-if [[ -f "${FINAL_MARKER}" ]]; then
-  log "All three Qwen3.5 VTC Base evaluations are already complete."
-  exit 0
-fi
-
 while [[ ! -f "${WAIT_MARKER}" ]]; do
   log "Waiting for the OPD-4B code/interface completion audit before Base evaluation."
   sleep 300
@@ -84,8 +79,11 @@ run_model() {
   local score_file="${ROOT}/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-${model_name}/${model_name}_VTC_Bench_score.csv"
   local server_log="${LOG_DIR}/vllm_${label}.log"
 
-  if [[ -f "${marker}" ]]; then
-    log "Skipping completed Base track: ${label}."
+  if [[ -f "${marker}" ]] && "${PYTHON}" \
+    "${OPD_ROOT}/integrations/vtc_bench/scripts/validate_vtc_base_track.py" \
+    --results-dir "${results_dir}" --model "${model_name}" --score-file "${score_file}"; then
+    log "Revalidated completed Base track: ${label}."
+    update_report
     return 0
   fi
   log "Starting ${label}: model=${model_path}, DP=${dp}, TP=${tp}."
