@@ -184,7 +184,7 @@ def validate_vtc_runner(path: Path) -> None:
         "--reasoning-parser qwen3",
         "--enable-auto-tool-choice --tool-call-parser qwen3_coder",
         "--tensor-parallel-size 1 --data-parallel-size 8",
-        "--max-model-len 65536",
+        "--max-model-len 131072",
         "--default-chat-template-kwargs '{\"enable_thinking\":true}'",
         "scripts/smoke_qwen35_tool_parser.py --model-path",
     )
