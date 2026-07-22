@@ -257,6 +257,14 @@ def main() -> None:
     interface_score_path = eval_root / interface_folder / f"{model}_VTC_Bench_score.csv"
     code_scores = read_vtc_score(code_score_path)
     interface_scores = read_vtc_score(interface_score_path)
+    partial_score_path = (
+        project / "benchmark/vtc_partial_20260722/vision_opd_4b_partial_scores.json"
+    )
+    partial_scores = (
+        json.loads(partial_score_path.read_text(encoding="utf-8"))
+        if partial_score_path.is_file()
+        else None
+    )
     code_valid, code_errors = result_jsonl_status(
         vtc / "runs" / "vtc_vision_opd_4b_step65_code", model
     )
@@ -479,6 +487,86 @@ def main() -> None:
         f"| Code-driven | {code_inference} | {format_score(code_scores.get('Overall'))} |",
         f"| Interface-driven | {interface_inference} | "
         f"{format_score(interface_scores.get('Overall'))} |",
+    ]
+
+    if partial_scores:
+        partial_tracks = partial_scores["tracks"]
+        code_partial = partial_tracks["code-driven"]
+        interface_partial = partial_tracks["interface-driven"]
+        combined_partial = partial_scores["combined_track_samples"]
+        partial_categories = sorted(
+            set(code_partial["category_metrics"]) | set(interface_partial["category_metrics"])
+        )
+        lines += [
+            "",
+            "### Partial Heuristic Snapshot",
+            "",
+            f"Snapshot generated at `{partial_scores['generated_utc']}` from the latest cumulative "
+            "JSONL files. Scoring reuses the public "
+            "`VTCBenchDataset.evaluate(..., model=\"exact_matching\")` path; both track results "
+            "were independently checked against direct calls to the same official per-item rule.",
+            "",
+            "Only resume-valid completed rows are included. Unresolved, malformed, empty, or "
+            "explicitly invalid answers are excluded, so these values have tail-selection bias "
+            "and must not be reported as final 680-row VTC-Bench scores.",
+            "",
+            "| Track | Raw rows | Resume-valid/scored | Correct | Coverage | Partial overall |",
+            "| --- | ---: | ---: | ---: | ---: | ---: |",
+        ]
+        for label, values in (
+            ("Code-driven", code_partial),
+            ("Interface-driven", interface_partial),
+        ):
+            lines.append(
+                f"| {label} | {values['raw_rows']} | {values['matched_rows_scored']} | "
+                f"{values['correct_rows']} | "
+                f"{100.0 * values['matched_rows_scored'] / values['source_rows']:.2f}% | "
+                f"{values['overall_percent']:.2f}% |"
+            )
+        lines.append(
+            f"| Combined track-samples | {code_partial['raw_rows'] + interface_partial['raw_rows']} | "
+            f"{combined_partial['rows']} | {combined_partial['correct']} | "
+            f"{100.0 * combined_partial['rows'] / (code_partial['source_rows'] + interface_partial['source_rows']):.2f}% | "
+            f"{combined_partial['micro_percent']:.2f}% |"
+        )
+        lines += [
+            "",
+            "| Category | Code rows | Code correct | Code partial | Interface rows | "
+            "Interface correct | Interface partial |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+        for category in partial_categories:
+            code_category = code_partial["category_metrics"].get(category, {})
+            interface_category = interface_partial["category_metrics"].get(category, {})
+            lines.append(
+                f"| {category} | {code_category.get('rows', 0)} | "
+                f"{code_category.get('correct', 0)} | "
+                f"{code_category.get('percent', 0.0):.2f}% | "
+                f"{interface_category.get('rows', 0)} | "
+                f"{interface_category.get('correct', 0)} | "
+                f"{interface_category.get('percent', 0.0):.2f}% |"
+            )
+        lines += [
+            "",
+            f"Machine-readable snapshot: `{partial_score_path.relative_to(project)}`. "
+            f"Code JSONL SHA-256: `{code_partial['result_sha256']}`; interface JSONL SHA-256: "
+            f"`{interface_partial['result_sha256']}`.",
+            "",
+            f"On these scored subsets, interface-driven is "
+            f"{interface_partial['overall_percent'] - code_partial['overall_percent']:+.2f} pp "
+            "above code-driven overall. Its largest observed advantages are spatial "
+            f"({interface_partial['category_metrics']['spatial']['percent'] - code_partial['category_metrics']['spatial']['percent']:+.2f} pp) "
+            "and color "
+            f"({interface_partial['category_metrics']['color']['percent'] - code_partial['category_metrics']['color']['percent']:+.2f} pp); "
+            "code-driven is higher on perceptual "
+            f"({code_partial['category_metrics']['perceptual']['percent'] - interface_partial['category_metrics']['perceptual']['percent']:+.2f} pp) "
+            "and math "
+            f"({code_partial['category_metrics']['math']['percent'] - interface_partial['category_metrics']['math']['percent']:+.2f} pp). "
+            "Because category coverage differs between tracks and unresolved tail rows are excluded, "
+            "these deltas are descriptive rather than final track comparisons.",
+        ]
+
+    lines += [
         "",
         "### Runtime Diagnostics",
         "",

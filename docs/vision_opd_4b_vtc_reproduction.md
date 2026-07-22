@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T07:08:02.828205+00:00
+Generated: 2026-07-22T07:56:20.428003+00:00
 
 ## Progress Snapshot
 
@@ -8,9 +8,9 @@ Generated: 2026-07-22T07:08:02.828205+00:00
 | --- | ---: | --- |
 | Official baseline 4B | 10/10 benchmarks | complete |
 | Official OPD-4B | 10/10 benchmarks | complete |
-| VTC code-driven | 588/680 | in progress, scoring pending |
+| VTC code-driven | 595/680 | in progress, scoring pending |
 | VTC interface-driven | 662/680 | in progress, scoring pending |
-| VTC combined | 1250/1360 (91.91%) | in progress, scoring pending |
+| VTC combined | 1257/1360 (92.43%) | in progress, scoring pending |
 
 ## Official Benchmark Alignment
 
@@ -78,8 +78,36 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 588/680 | pending |
+| Code-driven | 595/680 | pending |
 | Interface-driven | 662/680 | pending |
+
+### Partial Heuristic Snapshot
+
+Snapshot generated at `2026-07-22T07:55:06.883924+00:00` from the latest cumulative JSONL files. Scoring reuses the public `VTCBenchDataset.evaluate(..., model="exact_matching")` path; both track results were independently checked against direct calls to the same official per-item rule.
+
+Only resume-valid completed rows are included. Unresolved, malformed, empty, or explicitly invalid answers are excluded, so these values have tail-selection bias and must not be reported as final 680-row VTC-Bench scores.
+
+| Track | Raw rows | Resume-valid/scored | Correct | Coverage | Partial overall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Code-driven | 593 | 590 | 96 | 86.76% | 16.27% |
+| Interface-driven | 662 | 659 | 119 | 96.91% | 18.06% |
+| Combined track-samples | 1255 | 1249 | 215 | 91.84% | 17.21% |
+
+| Category | Code rows | Code correct | Code partial | Interface rows | Interface correct | Interface partial |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| attention | 41 | 4 | 9.76% | 45 | 5 | 11.11% |
+| chart | 84 | 20 | 23.81% | 96 | 23 | 23.96% |
+| color | 87 | 12 | 13.79% | 89 | 22 | 24.72% |
+| counting | 83 | 5 | 6.02% | 84 | 7 | 8.33% |
+| math | 86 | 17 | 19.77% | 102 | 15 | 14.71% |
+| measure | 77 | 14 | 18.18% | 98 | 16 | 16.33% |
+| ocr | 47 | 7 | 14.89% | 50 | 6 | 12.00% |
+| perceptual | 45 | 6 | 13.33% | 50 | 4 | 8.00% |
+| spatial | 40 | 11 | 27.50% | 45 | 21 | 46.67% |
+
+Machine-readable snapshot: `benchmark/vtc_partial_20260722/vision_opd_4b_partial_scores.json`. Code JSONL SHA-256: `471a6f0669cedf5dbd563963f5cb1e962a66159e93d40b2ada9d89fbb5297d90`; interface JSONL SHA-256: `fb7a2539d2045da09a023911a933821a912d695a515668ac89c1d6f33d64ef95`.
+
+On these scored subsets, interface-driven is +1.79 pp above code-driven overall. Its largest observed advantages are spatial (+19.17 pp) and color (+10.93 pp); code-driven is higher on perceptual (+5.33 pp) and math (+5.06 pp). Because category coverage differs between tracks and unresolved tail rows are excluded, these deltas are descriptive rather than final track comparisons.
 
 ### Runtime Diagnostics
 
@@ -87,15 +115,15 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Code-driven | 588 | 11 | 3 | 199549 | 0 |
-| Interface-driven | 662 | 5 | 2 | 125453 | 0 |
+| Code-driven | 595 | 11 | 3 | 199549 | 0 |
+| Interface-driven | 662 | 4 | 1 | 118667 | 0 |
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 3580 |
+| Successful vLLM requests | 504 |
 | HTTP 400 context-length rejections | 0 |
-| Network/read timeout retry messages | 804 |
-| Invalid-answer messages | 574 |
+| Network/read timeout retry messages | 812 |
+| Invalid-answer messages | 602 |
 | Task-timeout messages | 335 |
 
 The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls per run plus final-format retries; the resumed tail deviation is recorded below. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.

@@ -1,0 +1,137 @@
+{
+  "generated_utc": "2026-07-22T07:55:06.883924+00:00",
+  "evaluator": "vlmeval.dataset.image_vqa.VTCBenchDataset.evaluate",
+  "per_item_rule": "VTCBenchDataset._evaluate_single_item",
+  "method": "official heuristic rule evaluation",
+  "partial": true,
+  "denominator_note": "Only resume-valid rows in the latest JSONL snapshot are scored; this is not a full 680-row result.",
+  "tracks": {
+    "code-driven": {
+      "track": "code-driven",
+      "result_file": "/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/runs/vtc_vision_opd_4b_step65_code/Vision-OPD-Qwen3.5-4B-released-b96-r8-official/results_20260722_071538.jsonl",
+      "result_sha256": "471a6f0669cedf5dbd563963f5cb1e962a66159e93d40b2ada9d89fbb5297d90",
+      "raw_rows": 593,
+      "malformed_json_lines": 0,
+      "resume_valid_rows": 590,
+      "matched_rows_scored": 590,
+      "duplicate_item_ids": 0,
+      "source_rows": 680,
+      "overall_percent": 16.271186440677965,
+      "correct_rows": 96,
+      "category_metrics": {
+        "attention": {
+          "rows": 41,
+          "correct": 4,
+          "percent": 9.75609756097561
+        },
+        "chart": {
+          "rows": 84,
+          "correct": 20,
+          "percent": 23.809523809523807
+        },
+        "color": {
+          "rows": 87,
+          "correct": 12,
+          "percent": 13.793103448275861
+        },
+        "counting": {
+          "rows": 83,
+          "correct": 5,
+          "percent": 6.024096385542169
+        },
+        "math": {
+          "rows": 86,
+          "correct": 17,
+          "percent": 19.767441860465116
+        },
+        "measure": {
+          "rows": 77,
+          "correct": 14,
+          "percent": 18.181818181818183
+        },
+        "ocr": {
+          "rows": 47,
+          "correct": 7,
+          "percent": 14.893617021276595
+        },
+        "perceptual": {
+          "rows": 45,
+          "correct": 6,
+          "percent": 13.333333333333334
+        },
+        "spatial": {
+          "rows": 40,
+          "correct": 11,
+          "percent": 27.500000000000004
+        }
+      },
+      "public_evaluator_verified": true
+    },
+    "interface-driven": {
+      "track": "interface-driven",
+      "result_file": "/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/runs/vtc_vision_opd_4b_step65_interface/Vision-OPD-Qwen3.5-4B-released-b96-r8-official/results_20260722_071538.jsonl",
+      "result_sha256": "fb7a2539d2045da09a023911a933821a912d695a515668ac89c1d6f33d64ef95",
+      "raw_rows": 662,
+      "malformed_json_lines": 0,
+      "resume_valid_rows": 659,
+      "matched_rows_scored": 659,
+      "duplicate_item_ids": 0,
+      "source_rows": 680,
+      "overall_percent": 18.057663125948405,
+      "correct_rows": 119,
+      "category_metrics": {
+        "attention": {
+          "rows": 45,
+          "correct": 5,
+          "percent": 11.11111111111111
+        },
+        "chart": {
+          "rows": 96,
+          "correct": 23,
+          "percent": 23.958333333333336
+        },
+        "color": {
+          "rows": 89,
+          "correct": 22,
+          "percent": 24.719101123595504
+        },
+        "counting": {
+          "rows": 84,
+          "correct": 7,
+          "percent": 8.333333333333332
+        },
+        "math": {
+          "rows": 102,
+          "correct": 15,
+          "percent": 14.705882352941178
+        },
+        "measure": {
+          "rows": 98,
+          "correct": 16,
+          "percent": 16.3265306122449
+        },
+        "ocr": {
+          "rows": 50,
+          "correct": 6,
+          "percent": 12.0
+        },
+        "perceptual": {
+          "rows": 50,
+          "correct": 4,
+          "percent": 8.0
+        },
+        "spatial": {
+          "rows": 45,
+          "correct": 21,
+          "percent": 46.666666666666664
+        }
+      },
+      "public_evaluator_verified": true
+    }
+  },
+  "combined_track_samples": {
+    "rows": 1249,
+    "correct": 215,
+    "micro_percent": 17.21377101681345
+  }
+}
