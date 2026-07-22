@@ -911,6 +911,12 @@ def main() -> None:
         "sampling settings, `max_tokens=40960`, images, questions and answer options remain "
         "unchanged. This phase is not protocol-identical to the paper and must be interpreted "
         "as deadline-driven completion of the already mixed-policy local run.",
+        "- VTC final code-only completion deviation: at code 670/680 and interface 680/680, "
+        "the last 10 code rows retain the two-call cap but strengthen the MC suffix to request "
+        "an immediate exact `<think></think><answer>LETTER</answer>` response without analysis "
+        "or a tool. This is a completion policy rather than a paper-identical code-driven "
+        "evaluation; the unchanged temperature/top-p/top-k/penalties/seed/max-token settings "
+        "do not make these 10 prompts protocol-equivalent to the earlier rows.",
         "- VTC final-answer semantic stop: resumed tail samples set `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. The configured `max_tokens=40960` remains unchanged; generation stops only after the model emits the required `</answer>` protocol delimiter, which is restored after the OpenAI-compatible API removes its matched stop string. This prevents post-answer repetition without truncating an unfinished answer.",
         "- VTC serving: vLLM DP8/TP1, context 131072, prefix caching enabled, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.",
         "- VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.",

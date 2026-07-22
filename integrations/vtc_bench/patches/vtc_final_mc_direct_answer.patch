@@ -1,0 +1,17 @@
+diff --git a/eval/VTC_Bench_Eval.py b/eval/VTC_Bench_Eval.py
+--- a/eval/VTC_Bench_Eval.py
++++ b/eval/VTC_Bench_Eval.py
+@@ -678,9 +678,10 @@ def process_single_item(args: Tuple) -> Dict:
+             question += "\n\nOptions:\n" + "\n".join(options)
+             if os.getenv('VTC_FORCE_OPTION_LETTER', 'false').lower() == 'true':
+                 question += (
+-                    "\nFor this multiple-choice question, the final <answer> "
+-                    "must contain only the option letter (A, B, C, D, or E). "
+-                    "Do not put the option text or explanation inside <answer>."
++                    "\nFor this final-tail multiple-choice retry, do not provide analysis or "
++                    "use a tool. Respond immediately and exactly in this form: "
++                    "<think></think><answer>LETTER</answer>, replacing LETTER with only one "
++                    "option letter (A, B, C, D, or E)."
+                 )
+ 
+         

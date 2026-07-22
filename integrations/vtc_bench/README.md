@@ -42,6 +42,12 @@ sentence only constrains the final `<answer>` to an option letter. Remove these
 exports to reproduce the unmodified 20-call protocol; the final report records
 both tail phases.
 
+At the final code-only boundary (code 670/680, interface 680/680), the same
+environment switch uses `patches/vtc_final_mc_direct_answer.patch` to request
+the exact immediate form `<think></think><answer>LETTER</answer>`. This final
+10-row phase is explicitly a completion policy, not a paper-identical tool-use
+evaluation.
+
 The resumed tail also sets `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. This keeps the
 configured `max_tokens=40960` unchanged and stops only after the required
 `</answer>` delimiter has been generated. The compatibility patch restores the
