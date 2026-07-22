@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T16:22:40.722941+00:00
+Generated: 2026-07-22T16:27:17.568040+00:00
 
 ## Progress Snapshot
 
@@ -156,17 +156,57 @@ Exact User Prompt template (without GT Toolchains):
 
 Per-model reproducibility artifacts:
 
-| Model | Model path | Processor config SHA-256 | Native chat template SHA-256 | Server |
-| --- | --- | --- | --- | --- |
-| Local OPD-4B Base | `/data00/users/wanglikun/ProjWormLK/Vision-OPD/merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4` | `d89ef49ce9cd37fbf510158e13c1ef063d9286411c1ec9049932dbe0487143b1` | `a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715` | DP8 / TP1, context 65,536 |
-| Local Qwen3.5-4B Base | `/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B` | `27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516` | `a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715` | DP8 / TP1, context 65,536 |
-| Local Qwen3.5-9B Base | `/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b` | `27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516` | `a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715` | DP4 / TP2, context 65,536 |
+| Model | Model path | Processor | Processor config SHA-256 | Native chat template SHA-256 | Server |
+| --- | --- | --- | --- | --- | --- |
+| Local OPD-4B Base | `/data00/users/wanglikun/ProjWormLK/Vision-OPD/merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4` | Qwen3VLProcessor / Qwen2VLImageProcessor; patch=16, merge=2, pixels=65536..16777216 | `d89ef49ce9cd37fbf510158e13c1ef063d9286411c1ec9049932dbe0487143b1` | `a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715` | DP8 / TP1, context 65,536 |
+| Local Qwen3.5-4B Base | `/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B` | Qwen3VLProcessor / Qwen2VLImageProcessorFast; patch=16, merge=2, pixels=65536..16777216 | `27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516` | `a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715` | DP8 / TP1, context 65,536 |
+| Local Qwen3.5-9B Base | `/data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b` | Qwen3VLProcessor / Qwen2VLImageProcessorFast; patch=16, merge=2, pixels=65536..16777216 | `27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516` | `a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715` | DP4 / TP2, context 65,536 |
 
 Config and score paths:
 
 - Local OPD-4B Base: config `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/eval_config/vision_opd_qwen35_4b_base.yaml` (SHA-256 `ded3a6392b14bb6c3dfb622748e8bb1df0844cb3b030ac3452145ff2e653bd8c`), score `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Vision-OPD-Qwen3.5-4B-released-b96-r8-base/Vision-OPD-Qwen3.5-4B-released-b96-r8-base_VTC_Bench_score.csv`.
 - Local Qwen3.5-4B Base: config `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/eval_config/qwen35_4b_base.yaml` (SHA-256 `e717110b3dd0e059a84bce5a21ce6185006026d0cfa988914541cc10d6e9fab9`), score `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Qwen3.5-4B-base-vtc/Qwen3.5-4B-base-vtc_VTC_Bench_score.csv`.
 - Local Qwen3.5-9B Base: config `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/eval_config/qwen35_9b_base.yaml` (SHA-256 `7cefed980018c7e04e4cca619b06501b33ef8ef99696f587f4001cab99179f54`), score `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Qwen3.5-9B-base-vtc/Qwen3.5-9B-base-vtc_VTC_Bench_score.csv`.
+
+Exact server commands (the executable is `/data00/users/wanglikun/anaconda3/envs/vision-opd/bin/vllm`):
+
+#### Local OPD-4B Base
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm serve /data00/users/wanglikun/ProjWormLK/Vision-OPD/merged_models/Vision-OPD-Qwen3.5-4B-released-b96-r8-gradaccum-sp4 \
+  --served-model-name Vision-OPD-Qwen3.5-4B-released-b96-r8-base --host 127.0.0.1 --port 8000 \
+  --tensor-parallel-size 1 --data-parallel-size 8 \
+  --max-model-len 65536 --gpu-memory-utilization 0.90 --enable-prefix-caching \
+  --chat-template /data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja \
+  --default-chat-template-kwargs '{"enable_thinking":true}' \
+  --reasoning-parser qwen3 --trust-remote-code
+```
+
+#### Local Qwen3.5-4B Base
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm serve /data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B \
+  --served-model-name Qwen3.5-4B-base-vtc --host 127.0.0.1 --port 8000 \
+  --tensor-parallel-size 1 --data-parallel-size 8 \
+  --max-model-len 65536 --gpu-memory-utilization 0.90 --enable-prefix-caching \
+  --chat-template /data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-4B/chat_template.jinja \
+  --default-chat-template-kwargs '{"enable_thinking":true}' \
+  --reasoning-parser qwen3 --trust-remote-code
+```
+
+#### Local Qwen3.5-9B Base
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm serve /data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b \
+  --served-model-name Qwen3.5-9B-base-vtc --host 127.0.0.1 --port 8000 \
+  --tensor-parallel-size 2 --data-parallel-size 4 \
+  --max-model-len 65536 --gpu-memory-utilization 0.90 --enable-prefix-caching \
+  --chat-template /data00/users/wanglikun/ProjWormLK/MODEL_ZOO/Qwen/Qwen3.5-9b/chat_template.jinja \
+  --default-chat-template-kwargs '{"enable_thinking":true}' \
+  --reasoning-parser qwen3 --trust-remote-code
+```
+
+Shared evaluator environment: `PYTHONPATH=<VTC>/eval:<VTC>/eval/eval/VLMEvalKit`, `QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, `NO_PROXY=127.0.0.1,localhost`; no Qwen-Agent tool-loop override variables are set.
 
 ### Partial Heuristic Snapshot
 
@@ -207,11 +247,11 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 1910 |
+| Successful vLLM requests | 1919 |
 | HTTP 400 context-length rejections | 0 |
 | Network/read timeout retry messages | 887 |
 | Invalid-answer messages | 646 |
-| Task-timeout messages | 441 |
+| Task-timeout messages | 443 |
 
 The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls per run plus final-format retries; the resumed tail deviation is recorded below. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
 

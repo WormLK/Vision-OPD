@@ -109,6 +109,20 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def processor_summary(path: Path) -> str:
+    if not path.is_file():
+        return "missing"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    image = data.get("image_processor", data)
+    size = image.get("size", {})
+    return (
+        f"{data.get('processor_class', 'unknown')} / "
+        f"{image.get('image_processor_type', 'unknown')}; "
+        f"patch={image.get('patch_size', 'N/R')}, merge={image.get('merge_size', 'N/R')}, "
+        f"pixels={size.get('shortest_edge', 'N/R')}..{size.get('longest_edge', 'N/R')}"
+    )
+
+
 def read_vtc_score(path: Path) -> dict[str, float]:
     if not path.is_file():
         return {}
@@ -323,6 +337,7 @@ def main() -> None:
                 "topology": topology,
                 "model_path": model_path,
                 "processor_path": model_path / processor_filename,
+                "processor_summary": processor_summary(model_path / processor_filename),
                 "chat_template_path": chat_template_path,
                 "valid": valid,
                 "errors": errors,
@@ -659,12 +674,12 @@ def main() -> None:
         "",
         "Per-model reproducibility artifacts:",
         "",
-        "| Model | Model path | Processor config SHA-256 | Native chat template SHA-256 | Server |",
-        "| --- | --- | --- | --- | --- |",
+        "| Model | Model path | Processor | Processor config SHA-256 | Native chat template SHA-256 | Server |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for track in base_tracks:
         lines.append(
-            f"| {track['label']} | `{track['model_path']}` | "
+            f"| {track['label']} | `{track['model_path']}` | {track['processor_summary']} | "
             f"`{sha256(track['processor_path'])}` | "
             f"`{sha256(track['chat_template_path'])}` | {track['topology']}, context 65,536 |"
         )
@@ -674,6 +689,36 @@ def main() -> None:
             f"- {track['label']}: config `{track['config_path']}` "
             f"(SHA-256 `{sha256(track['config_path'])}`), score `{track['score_path']}`."
         )
+    lines += [
+        "",
+        "Exact server commands (the executable is "
+        "`/data00/users/wanglikun/anaconda3/envs/vision-opd/bin/vllm`):",
+        "",
+    ]
+    for track in base_tracks:
+        dp_match = re.search(r"DP(\d+)", track["topology"])
+        tp_match = re.search(r"TP(\d+)", track["topology"])
+        assert dp_match and tp_match
+        lines += [
+            f"#### {track['label']}",
+            "",
+            "```bash",
+            f"CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm serve {track['model_path']} \\",
+            f"  --served-model-name {track['model']} --host 127.0.0.1 --port 8000 \\",
+            f"  --tensor-parallel-size {tp_match.group(1)} --data-parallel-size {dp_match.group(1)} \\",
+            "  --max-model-len 65536 --gpu-memory-utilization 0.90 --enable-prefix-caching \\",
+            f"  --chat-template {track['chat_template_path']} \\",
+            "  --default-chat-template-kwargs '{\"enable_thinking\":true}' \\",
+            "  --reasoning-parser qwen3 --trust-remote-code",
+            "```",
+            "",
+        ]
+    lines += [
+        "Shared evaluator environment: "
+        "`PYTHONPATH=<VTC>/eval:<VTC>/eval/eval/VLMEvalKit`, "
+        "`QWEN_AGENT_IMAGE_MAX_SHORT_SIDE=1080`, "
+        "`NO_PROXY=127.0.0.1,localhost`; no Qwen-Agent tool-loop override variables are set.",
+    ]
 
     if partial_scores:
         partial_tracks = partial_scores["tracks"]
