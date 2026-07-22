@@ -12,6 +12,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 
 BENCHMARKS = (
     ("vstar", "Vstar", 84.29, 92.15),
@@ -39,6 +41,29 @@ EXPECTED_COUNTS = {
 }
 BASELINE_MODEL = "Qwen3.5-4B-baseline-official"
 OPD_MODEL = "Vision-OPD-Qwen3.5-4B-released-b96-r8-official"
+BASE_TRACKS = (
+    (
+        "Local OPD-4B Base",
+        "Vision-OPD-Qwen3.5-4B-released-b96-r8-base",
+        "vtc_vision_opd_4b_step65_base",
+        "vision_opd_qwen35_4b_base.yaml",
+        "DP8 / TP1",
+    ),
+    (
+        "Local Qwen3.5-4B Base",
+        "Qwen3.5-4B-base-vtc",
+        "vtc_qwen35_4b_base",
+        "qwen35_4b_base.yaml",
+        "DP8 / TP1",
+    ),
+    (
+        "Local Qwen3.5-9B Base",
+        "Qwen3.5-9B-base-vtc",
+        "vtc_qwen35_9b_base",
+        "qwen35_9b_base.yaml",
+        "DP4 / TP2",
+    ),
+)
 
 
 def read_official_score(results: Path, model: str, benchmark: str) -> float | None:
@@ -257,6 +282,29 @@ def main() -> None:
     interface_score_path = eval_root / interface_folder / f"{model}_VTC_Bench_score.csv"
     code_scores = read_vtc_score(code_score_path)
     interface_scores = read_vtc_score(interface_score_path)
+    base_tracks = []
+    for label, base_model, run_name, config_name, topology in BASE_TRACKS:
+        folder = f"Qwen-Agent-Base-RawAPI-Instruct-{base_model}"
+        score_path = eval_root / folder / f"{base_model}_VTC_Bench_score.csv"
+        config_path = vtc / "eval" / "eval_config" / config_name
+        valid, errors = result_jsonl_status(vtc / "runs" / run_name, base_model)
+        base_tracks.append(
+            {
+                "label": label,
+                "model": base_model,
+                "run_name": run_name,
+                "config_name": config_name,
+                "config_path": config_path,
+                "config": yaml.safe_load(config_path.read_text(encoding="utf-8"))
+                if config_path.is_file()
+                else {},
+                "topology": topology,
+                "valid": valid,
+                "errors": errors,
+                "scores": read_vtc_score(score_path),
+                "score_path": score_path,
+            }
+        )
     partial_score_path = (
         project / "benchmark/vtc_partial_20260722/vision_opd_4b_partial_scores.json"
     )
@@ -329,6 +377,16 @@ def main() -> None:
         f"| VTC combined | {code_valid + interface_valid}/1360 "
         f"({100.0 * (code_valid + interface_valid) / 1360:.2f}%) | "
         f"{'complete' if code_scores.get('Overall') is not None and interface_scores.get('Overall') is not None else 'in progress, scoring pending'} |",
+    ]
+    for track in base_tracks:
+        inference = f"{track['valid']}/680"
+        if track["errors"]:
+            inference += f", errors={track['errors']}"
+        lines.append(
+            f"| {track['label']} | {inference} | "
+            f"{track_state(track['valid'], track['scores'])} |"
+        )
+    lines += [
         "",
         "## Official Benchmark Alignment",
         "",
@@ -489,6 +547,100 @@ def main() -> None:
         f"{format_score(interface_scores.get('Overall'))} |",
     ]
 
+    base_categories = sorted(
+        set().union(*(set(track["scores"]) for track in base_tracks)) - {"Overall"}
+    )
+    lines += [
+        "",
+        "### Base (Direct, No Tool)",
+        "",
+        "VTC-Bench Table 4 uses `Base` for direct visual question answering without tool "
+        "calls. The paper does not report Qwen3.5-4B or Qwen3.5-9B, so the three local rows "
+        "below are new backbone-matched measurements rather than claimed paper reproductions.",
+        "",
+        "| Model | Inference | Overall | Serving topology |",
+        "| --- | ---: | ---: | --- |",
+    ]
+    for track in base_tracks:
+        inference = f"{track['valid']}/680"
+        if track["errors"]:
+            inference += f", errors={track['errors']}"
+        lines.append(
+            f"| {track['label']} | {inference} | "
+            f"{format_score(track['scores'].get('Overall'))} | {track['topology']} |"
+        )
+    if base_categories:
+        lines += [
+            "",
+            "| Category | OPD-4B Base | Qwen3.5-4B Base | Qwen3.5-9B Base |",
+            "| --- | ---: | ---: | ---: |",
+        ]
+        for category in base_categories:
+            lines.append(
+                f"| {category} | "
+                + " | ".join(
+                    format_score(track["scores"].get(category)) for track in base_tracks
+                )
+                + " |"
+            )
+
+    first_base_config = base_tracks[0]["config"] if base_tracks else {}
+    base_system_prompt = first_base_config.get("agent", {}).get("system_prompt", "missing")
+    base_user_prompt = first_base_config.get("prompt_template", "missing")
+    lines += [
+        "",
+        "### Base Protocol and Qwen3.5 Adaptation",
+        "",
+        "The local Base implementation makes exactly one multimodal chat-completion request "
+        "with the original image and `functions=[]`. It does not instantiate a tool, append a "
+        "reference trajectory, or enter the multi-round function-calling loop. The result audit "
+        "requires 680 unique rows, one user turn per row, no tool/function messages, no "
+        "`function_call`, and a valid official heuristic score CSV.",
+        "",
+        "The paper's Qwen3-VL Thinking recipe is used because all three local Qwen3.5 runs "
+        "explicitly enable thinking. This is closer than the paper's Instruct recipe "
+        "(temperature 0.7, top-p 0.8, presence penalty 1.5, max tokens 16,384, seed 3407). "
+        "Qwen3.5 is not treated as numerically interchangeable with Qwen3-VL: it uses its own "
+        "tokenizer, processor, native chat template and reasoning format, so model-family "
+        "differences remain part of the measured result.",
+        "",
+        "| Parameter | Locked value |",
+        "| --- | --- |",
+        "| System prompt | VTC-Bench Strong System Prompt |",
+        "| User prompt | Original image/question/path/size; no GT toolchain |",
+        "| Tools/functions | Empty (`tools.enabled=[]`, API `functions=[]`) |",
+        "| Reference trajectory | Forbidden and absent |",
+        "| Thinking | `enable_thinking=true`, fixed by vLLM default chat-template kwargs |",
+        "| Sampling | temperature 0.6, top-p 0.95, top-k 20 |",
+        "| Penalties | repetition 1.0, presence 0 |",
+        "| Output / seed | max tokens 40,960; seed 1234 |",
+        "| Evaluator | 30 workers, resume enabled, up to 20 full-run attempts |",
+        "| Server context | 65,536 tokens; sufficient for one image plus 40,960 output tokens |",
+        "| Processor | Qwen-Agent image base64 adapter; max short side 1,080; then each model's native Qwen3.5 processor |",
+        "| Chat template | Model-native Qwen3.5 template; no custom template file |",
+        "| vLLM | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |",
+        "",
+        "Exact Strong System Prompt:",
+        "",
+        "```text",
+        base_system_prompt.rstrip(),
+        "```",
+        "",
+        "Exact User Prompt template (without GT Toolchains):",
+        "",
+        "```text",
+        base_user_prompt.rstrip(),
+        "```",
+        "",
+        "Per-model reproducibility artifacts:",
+        "",
+    ]
+    for track in base_tracks:
+        lines.append(
+            f"- {track['label']}: config `{track['config_path']}` "
+            f"(SHA-256 `{sha256(track['config_path'])}`), score `{track['score_path']}`."
+        )
+
     if partial_scores:
         partial_tracks = partial_scores["tracks"]
         code_partial = partial_tracks["code-driven"]
@@ -637,6 +789,8 @@ def main() -> None:
         "- VTC final-answer semantic stop: resumed tail samples set `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. The configured `max_tokens=40960` remains unchanged; generation stops only after the model emits the required `</answer>` protocol delimiter, which is restored after the OpenAI-compatible API removes its matched stop string. This prevents post-answer repetition without truncating an unfinished answer.",
         "- VTC serving: vLLM DP8/TP1, context 131072, prefix caching enabled, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.",
         "- VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.",
+        "- VTC Base tracks: direct one-shot original-image inference, no registered tools, no "
+        "GT trajectory, and strict serial order OPD-4B then baseline 4B then baseline 9B.",
         f"- VTC code YAML SHA-256: `{sha256(code_config)}`.",
         f"- VTC interface YAML SHA-256: `{sha256(interface_config)}`.",
         f"- Canonical repaired VTC GT SHA-256: `{sha256(vtc_gt)}`.",
@@ -654,6 +808,8 @@ def main() -> None:
         f"- VTC code score: `{code_score_path}`",
         f"- VTC interface score: `{interface_score_path}`",
     ]
+    for track in base_tracks:
+        lines.append(f"- {track['label']} score: `{track['score_path']}`")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")

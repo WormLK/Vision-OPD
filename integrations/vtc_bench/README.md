@@ -47,3 +47,25 @@ sees the same completed answer while avoiding post-answer repetition.
 
 Dataset images, TSV files, run directories, and VLMEvalKit outputs are not
 vendored in this repository.
+
+## Qwen3.5 Base tracks
+
+The Base/no-tool reproduction is defined by the three YAML files whose names
+end in `_base.yaml`. Apply `patches/vtc_base_direct_mode.patch` to add the
+one-shot direct agent, then run:
+
+```bash
+screen -L -Logfile /data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/logs/qwen35_vtc_base_sequence.log \
+  -dmS qwen35_vtc_base_sequence \
+  bash /data00/users/wanglikun/ProjWormLK/Vision-OPD/integrations/vtc_bench/scripts/run_qwen35_vtc_base_sequence.sh
+```
+
+The controller waits for the code/interface completion audit and then runs,
+strictly serially, trained OPD-4B Base, Qwen3.5-4B Base, and Qwen3.5-9B Base.
+Each track makes one multimodal call with `functions=[]`, uses the Strong System
+Prompt and the user prompt without a GT toolchain, and fixes thinking through
+vLLM's `--default-chat-template-kwargs '{"enable_thinking":true}'`. Generation
+is locked to temperature 0.6, top-p 0.95, top-k 20, repetition penalty 1.0,
+presence penalty 0, 40,960 output tokens, and seed 1234. The final audit checks
+680 unique successful rows, the no-tool/one-user-turn protocol, heuristic score
+files, serial order, and the generated report.

@@ -1,0 +1,84 @@
+# VTC-Bench Base: Strong prompt, original image only, no tools or GT trajectory.
+input:
+  tsv_path: "/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/data/vtc_bench/VTC-Bench.absolute.tsv"
+  data_dir: "/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/data/vtc_bench"
+  start_idx: 0
+  end_idx: null
+
+output:
+  results_dir: "/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/runs/vtc_qwen35_9b_base"
+  checkpoint_dir: null
+
+llm:
+  model_type: "qwenvl_oai"
+  model: "Qwen3.5-9B-base-vtc"
+  model_server: "http://127.0.0.1:8000/v1"
+  api_key: "EMPTY"
+  thought_in_content: true
+  generate_cfg:
+    use_raw_api: true
+    max_retries: 10
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 20
+    repetition_penalty: 1.0
+    presence_penalty: 0
+    max_tokens: 40960
+    seed: 1234
+
+tools:
+  enabled: []
+
+agent:
+  mode: "direct"
+  name: "VTC_Bench Base"
+  description: "One-shot original-image VTC-Bench Base evaluation without tools."
+  system_prompt: |
+    Your role is that of a helpful assistant specialized in solving real-world visual problems using image processing tools. Answer questions about images by combining your visual understanding with the precision of available tools.
+
+    Please follow this structured thinking process and show your work.
+
+    Start an iterative loop for each question:
+
+    - **First, look closely:** Begin with a detailed description of the image in the context of the user's real-life query. List what is immediately visible, and explicitly identify what specific visual details need to be clarified, adjusted, or measured using tools.
+    - **Next, apply tools:** Select and invoke just one appropriate function to process the image.
+    - **Then, review the findings:** Carefully analyze the tool's output (e.g., the processed image, detected features, or status) and decide on your next action (e.g., did the rotation fix the view? do you need further adjustments?).
+
+    Continue this loop until you have sufficient information.
+
+    To finish, bring everything together in a clear, synthesized answer that fully responds to the user's question.
+
+    Image Path **MUST** be Absolute Path. And only **ONE** tool can be used at a time.
+
+processing:
+  num_workers: 30
+  skip_errors: true
+  resume_from_checkpoint: true
+  progress_save_interval: 5
+
+prompt_template: |
+  <image>
+
+  {question}
+
+  ### User Image Path: "{image_path}"
+
+  ### User Image Size: "{image_size}"
+
+  ### **Output Format (strict adherence required):**
+
+  <think>Your detailed reasoning process, should go here.</think>
+
+  <answer>Your final answer to the user's question goes here.</answer>
+
+analysis:
+  exact_match: true
+  partial_match: true
+  option_match: true
+  max_error_samples: 10
+
+logging:
+  level: "INFO"
+  verbose: true
+  error_log_name: "errors_{timestamp}.txt"
+  progress_log_name: "progress_{timestamp}.json"

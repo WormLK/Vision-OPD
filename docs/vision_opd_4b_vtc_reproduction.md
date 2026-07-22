@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T07:56:20.428003+00:00
+Generated: 2026-07-22T16:11:48.805492+00:00
 
 ## Progress Snapshot
 
@@ -8,9 +8,12 @@ Generated: 2026-07-22T07:56:20.428003+00:00
 | --- | ---: | --- |
 | Official baseline 4B | 10/10 benchmarks | complete |
 | Official OPD-4B | 10/10 benchmarks | complete |
-| VTC code-driven | 595/680 | in progress, scoring pending |
-| VTC interface-driven | 662/680 | in progress, scoring pending |
-| VTC combined | 1257/1360 (92.43%) | in progress, scoring pending |
+| VTC code-driven | 643/680 | in progress, scoring pending |
+| VTC interface-driven | 670/680 | in progress, scoring pending |
+| VTC combined | 1313/1360 (96.54%) | in progress, scoring pending |
+| Local OPD-4B Base | 0/680 | pending |
+| Local Qwen3.5-4B Base | 0/680 | pending |
+| Local Qwen3.5-9B Base | 0/680 | pending |
 
 ## Official Benchmark Alignment
 
@@ -78,8 +81,84 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 595/680 | pending |
-| Interface-driven | 662/680 | pending |
+| Code-driven | 643/680 | pending |
+| Interface-driven | 670/680 | pending |
+
+### Base (Direct, No Tool)
+
+VTC-Bench Table 4 uses `Base` for direct visual question answering without tool calls. The paper does not report Qwen3.5-4B or Qwen3.5-9B, so the three local rows below are new backbone-matched measurements rather than claimed paper reproductions.
+
+| Model | Inference | Overall | Serving topology |
+| --- | ---: | ---: | --- |
+| Local OPD-4B Base | 0/680 | pending | DP8 / TP1 |
+| Local Qwen3.5-4B Base | 0/680 | pending | DP8 / TP1 |
+| Local Qwen3.5-9B Base | 0/680 | pending | DP4 / TP2 |
+
+### Base Protocol and Qwen3.5 Adaptation
+
+The local Base implementation makes exactly one multimodal chat-completion request with the original image and `functions=[]`. It does not instantiate a tool, append a reference trajectory, or enter the multi-round function-calling loop. The result audit requires 680 unique rows, one user turn per row, no tool/function messages, no `function_call`, and a valid official heuristic score CSV.
+
+The paper's Qwen3-VL Thinking recipe is used because all three local Qwen3.5 runs explicitly enable thinking. This is closer than the paper's Instruct recipe (temperature 0.7, top-p 0.8, presence penalty 1.5, max tokens 16,384, seed 3407). Qwen3.5 is not treated as numerically interchangeable with Qwen3-VL: it uses its own tokenizer, processor, native chat template and reasoning format, so model-family differences remain part of the measured result.
+
+| Parameter | Locked value |
+| --- | --- |
+| System prompt | VTC-Bench Strong System Prompt |
+| User prompt | Original image/question/path/size; no GT toolchain |
+| Tools/functions | Empty (`tools.enabled=[]`, API `functions=[]`) |
+| Reference trajectory | Forbidden and absent |
+| Thinking | `enable_thinking=true`, fixed by vLLM default chat-template kwargs |
+| Sampling | temperature 0.6, top-p 0.95, top-k 20 |
+| Penalties | repetition 1.0, presence 0 |
+| Output / seed | max tokens 40,960; seed 1234 |
+| Evaluator | 30 workers, resume enabled, up to 20 full-run attempts |
+| Server context | 65,536 tokens; sufficient for one image plus 40,960 output tokens |
+| Processor | Qwen-Agent image base64 adapter; max short side 1,080; then each model's native Qwen3.5 processor |
+| Chat template | Model-native Qwen3.5 template; no custom template file |
+| vLLM | prefix caching, Qwen3 reasoning parser, trust remote code, GPU utilization 0.90 |
+
+Exact Strong System Prompt:
+
+```text
+Your role is that of a helpful assistant specialized in solving real-world visual problems using image processing tools. Answer questions about images by combining your visual understanding with the precision of available tools.
+
+Please follow this structured thinking process and show your work.
+
+Start an iterative loop for each question:
+
+- **First, look closely:** Begin with a detailed description of the image in the context of the user's real-life query. List what is immediately visible, and explicitly identify what specific visual details need to be clarified, adjusted, or measured using tools.
+- **Next, apply tools:** Select and invoke just one appropriate function to process the image.
+- **Then, review the findings:** Carefully analyze the tool's output (e.g., the processed image, detected features, or status) and decide on your next action (e.g., did the rotation fix the view? do you need further adjustments?).
+
+Continue this loop until you have sufficient information.
+
+To finish, bring everything together in a clear, synthesized answer that fully responds to the user's question.
+
+Image Path **MUST** be Absolute Path. And only **ONE** tool can be used at a time.
+```
+
+Exact User Prompt template (without GT Toolchains):
+
+```text
+<image>
+
+{question}
+
+### User Image Path: "{image_path}"
+
+### User Image Size: "{image_size}"
+
+### **Output Format (strict adherence required):**
+
+<think>Your detailed reasoning process, should go here.</think>
+
+<answer>Your final answer to the user's question goes here.</answer>
+```
+
+Per-model reproducibility artifacts:
+
+- Local OPD-4B Base: config `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/eval_config/vision_opd_qwen35_4b_base.yaml` (SHA-256 `ded3a6392b14bb6c3dfb622748e8bb1df0844cb3b030ac3452145ff2e653bd8c`), score `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Vision-OPD-Qwen3.5-4B-released-b96-r8-base/Vision-OPD-Qwen3.5-4B-released-b96-r8-base_VTC_Bench_score.csv`.
+- Local Qwen3.5-4B Base: config `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/eval_config/qwen35_4b_base.yaml` (SHA-256 `e717110b3dd0e059a84bce5a21ce6185006026d0cfa988914541cc10d6e9fab9`), score `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Qwen3.5-4B-base-vtc/Qwen3.5-4B-base-vtc_VTC_Bench_score.csv`.
+- Local Qwen3.5-9B Base: config `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/eval_config/qwen35_9b_base.yaml` (SHA-256 `7cefed980018c7e04e4cca619b06501b33ef8ef99696f587f4001cab99179f54`), score `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Qwen3.5-9B-base-vtc/Qwen3.5-9B-base-vtc_VTC_Bench_score.csv`.
 
 ### Partial Heuristic Snapshot
 
@@ -115,16 +194,16 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Code-driven | 595 | 11 | 3 | 199549 | 0 |
-| Interface-driven | 662 | 4 | 1 | 118667 | 0 |
+| Code-driven | 643 | 13 | 4 | 199549 | 0 |
+| Interface-driven | 670 | 4 | 1 | 118667 | 0 |
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 504 |
+| Successful vLLM requests | 1895 |
 | HTTP 400 context-length rejections | 0 |
-| Network/read timeout retry messages | 812 |
-| Invalid-answer messages | 602 |
-| Task-timeout messages | 335 |
+| Network/read timeout retry messages | 887 |
+| Invalid-answer messages | 646 |
+| Task-timeout messages | 437 |
 
 The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls per run plus final-format retries; the resumed tail deviation is recorded below. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
 
@@ -151,6 +230,7 @@ The dominant runtime cost is retry amplification around long generations. The cl
 - VTC final-answer semantic stop: resumed tail samples set `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. The configured `max_tokens=40960` remains unchanged; generation stops only after the model emits the required `</answer>` protocol delimiter, which is restored after the OpenAI-compatible API removes its matched stop string. This prevents post-answer repetition without truncating an unfinished answer.
 - VTC serving: vLLM DP8/TP1, context 131072, prefix caching enabled, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.
 - VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.
+- VTC Base tracks: direct one-shot original-image inference, no registered tools, no GT trajectory, and strict serial order OPD-4B then baseline 4B then baseline 9B.
 - VTC code YAML SHA-256: `405d9d97bea4b6f150ace4e93731c244d6c19309175eaa348fbf2a7226d65ad9`.
 - VTC interface YAML SHA-256: `c927b549a155be17ae590d3dd67cf6375086f0e9ffa62410726055d7f1038149`.
 - Canonical repaired VTC GT SHA-256: `a17d9dd82dea023abafe1421027e6bc3f5ba5967c602013087093bed9da571a6`.
@@ -167,3 +247,6 @@ The dominant runtime cost is retry amplification around long generations. The cl
 - Final goal audit marker: `/data00/users/wanglikun/ProjWormLK/Vision-OPD/outputs/vision_opd_4b_goal_audit_complete`
 - VTC code score: `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Code-RawAPI-Instruct-Vision-OPD-Qwen3.5-4B-released-b96-r8-official/Vision-OPD-Qwen3.5-4B-released-b96-r8-official_VTC_Bench_score.csv`
 - VTC interface score: `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Interface-RawAPI-Instruct-Vision-OPD-Qwen3.5-4B-released-b96-r8-official/Vision-OPD-Qwen3.5-4B-released-b96-r8-official_VTC_Bench_score.csv`
+- Local OPD-4B Base score: `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Vision-OPD-Qwen3.5-4B-released-b96-r8-base/Vision-OPD-Qwen3.5-4B-released-b96-r8-base_VTC_Bench_score.csv`
+- Local Qwen3.5-4B Base score: `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Qwen3.5-4B-base-vtc/Qwen3.5-4B-base-vtc_VTC_Bench_score.csv`
+- Local Qwen3.5-9B Base score: `/data00/users/wanglikun/ProjWormLK/visionReason/qwen_tool_calling_lab/eval/VLMEvalKit/outputs/VTC_Bench/Qwen-Agent-Base-RawAPI-Instruct-Qwen3.5-9B-base-vtc/Qwen3.5-9B-base-vtc_VTC_Bench_score.csv`

@@ -1,0 +1,51 @@
+diff --git a/eval/VTC_Bench_Eval.py b/eval/VTC_Bench_Eval.py
+--- a/eval/VTC_Bench_Eval.py
++++ b/eval/VTC_Bench_Eval.py
+@@ -193,6 +193,20 @@ def load_config(config_path: str) -> Optional[Dict]:
+         return None
+ 
+ 
++class DirectAnswerAgent(FnCallAgent):
++    """One-shot VTC Base agent that never exposes functions to the model."""
++
++    def _run(self, messages: List[Message], lang: str = 'en', **kwargs):
++        extra_generate_cfg = {'lang': lang}
++        if kwargs.get('seed') is not None:
++            extra_generate_cfg['seed'] = kwargs['seed']
++        yield from self._call_llm(
++            messages=messages,
++            functions=[],
++            extra_generate_cfg=extra_generate_cfg,
++        )
++
++
+ def init_agent(config: Dict, model_name: str = None, question_id: str = '', use_api_key_rotation: bool = True) -> FnCallAgent:
+     """Initialize FnCallAgent with code_interpreter tool from config.
+ 
+@@ -256,8 +270,14 @@ def init_agent(config: Dict, model_name: str = None, question_id: str = '', use_api_key_rotation: bool = True) -> FnCallAgent:
+     # Get agent config
+     agent_config = config.get('agent', {})
+     system_prompt = agent_config.get('system_prompt', 'You are a helpful assistant.')
++    agent_mode = agent_config.get('mode', 'tool')
++    if agent_mode not in {'tool', 'direct'}:
++        raise ValueError(f"Unsupported agent.mode: {agent_mode}")
++    if agent_mode == 'direct' and tools:
++        raise ValueError("agent.mode=direct requires tools.enabled=[]")
++    agent_class = DirectAnswerAgent if agent_mode == 'direct' else FnCallAgent
+     
+-    bot = FnCallAgent(
++    bot = agent_class(
+         llm=llm_cfg,
+         name=agent_config.get('name', 'VTC_Bench Agent'),
+         description=agent_config.get('description', 'Agent for answering visual questions on VTC_Bench'),
+@@ -1249,7 +1269,9 @@ def create_eval_output_folder(model_name: str, benchmark_name: str = 'VTC_Bench', config_file: str = None, use_raw_api: bool = False) -> str:
+     # Step 1: Determine CodeType (code or interface) from config_file name
+     if config_file:
+         config_name = os.path.basename(config_file).lower()
+-        if 'interface' in config_name:
++        if 'base' in config_name:
++            code_type = 'Base'
++        elif 'interface' in config_name:
+             code_type = 'Interface'
+         else:
+             code_type = 'Code'
