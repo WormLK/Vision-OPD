@@ -634,8 +634,9 @@ def main() -> None:
         "The local Base implementation makes exactly one multimodal chat-completion request "
         "with the original image and `functions=[]`. It does not instantiate a tool, append a "
         "reference trajectory, or enter the multi-round function-calling loop. The result audit "
-        "requires 680 unique rows, one user turn per row, no tool/function messages, no "
-        "`function_call`, and a valid official heuristic score CSV.",
+        "requires 680 unique rows, one user turn per row, exactly one assistant message in each "
+        "raw response artifact, no tool/function messages, no `function_call`/`tool_calls`, and "
+        "a valid official heuristic score CSV.",
         "",
         "The paper's Qwen3-VL Thinking recipe is used because all three local Qwen3.5 runs "
         "explicitly enable thinking. This is closer than the paper's Instruct recipe "

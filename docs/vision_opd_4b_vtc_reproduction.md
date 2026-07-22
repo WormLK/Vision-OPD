@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T16:27:17.568040+00:00
+Generated: 2026-07-22T16:32:11.398730+00:00
 
 ## Progress Snapshot
 
@@ -8,9 +8,9 @@ Generated: 2026-07-22T16:27:17.568040+00:00
 | --- | ---: | --- |
 | Official baseline 4B | 10/10 benchmarks | complete |
 | Official OPD-4B | 10/10 benchmarks | complete |
-| VTC code-driven | 643/680 | in progress, scoring pending |
-| VTC interface-driven | 670/680 | in progress, scoring pending |
-| VTC combined | 1313/1360 (96.54%) | in progress, scoring pending |
+| VTC code-driven | 646/680 | in progress, scoring pending |
+| VTC interface-driven | 671/680 | in progress, scoring pending |
+| VTC combined | 1317/1360 (96.84%) | in progress, scoring pending |
 | Local OPD-4B Base | 0/680 | pending |
 | Local Qwen3.5-4B Base | 0/680 | pending |
 | Local Qwen3.5-9B Base | 0/680 | pending |
@@ -81,8 +81,8 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 643/680 | pending |
-| Interface-driven | 670/680 | pending |
+| Code-driven | 646/680 | pending |
+| Interface-driven | 671/680 | pending |
 
 ### Base (Direct, No Tool)
 
@@ -96,7 +96,7 @@ VTC-Bench Table 4 uses `Base` for direct visual question answering without tool 
 
 ### Base Protocol and Qwen3.5 Adaptation
 
-The local Base implementation makes exactly one multimodal chat-completion request with the original image and `functions=[]`. It does not instantiate a tool, append a reference trajectory, or enter the multi-round function-calling loop. The result audit requires 680 unique rows, one user turn per row, no tool/function messages, no `function_call`, and a valid official heuristic score CSV.
+The local Base implementation makes exactly one multimodal chat-completion request with the original image and `functions=[]`. It does not instantiate a tool, append a reference trajectory, or enter the multi-round function-calling loop. The result audit requires 680 unique rows, one user turn per row, exactly one assistant message in each raw response artifact, no tool/function messages, no `function_call`/`tool_calls`, and a valid official heuristic score CSV.
 
 The paper's Qwen3-VL Thinking recipe is used because all three local Qwen3.5 runs explicitly enable thinking. This is closer than the paper's Instruct recipe (temperature 0.7, top-p 0.8, presence penalty 1.5, max tokens 16,384, seed 3407). Qwen3.5 is not treated as numerically interchangeable with Qwen3-VL: it uses its own tokenizer, processor, native chat template and reasoning format, so model-family differences remain part of the measured result.
 
@@ -242,16 +242,16 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Code-driven | 643 | 13 | 4 | 199549 | 0 |
-| Interface-driven | 670 | 4 | 1 | 118667 | 0 |
+| Code-driven | 646 | 13 | 4 | 199549 | 0 |
+| Interface-driven | 671 | 4 | 1 | 118667 | 0 |
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 1919 |
+| Successful vLLM requests | 1944 |
 | HTTP 400 context-length rejections | 0 |
 | Network/read timeout retry messages | 887 |
 | Invalid-answer messages | 646 |
-| Task-timeout messages | 443 |
+| Task-timeout messages | 446 |
 
 The dominant runtime cost is retry amplification around long generations. The client and evaluator task timeouts are 3,600 seconds, and each row permits three evaluator attempts. The base agent protocol permits up to 20 LLM calls per run plus final-format retries; the resumed tail deviation is recorded below. The earlier 65,536-context server rejected requests when the 40,960-token output allowance plus accumulated multimodal/tool context exceeded that limit; the resumed server uses 131,072 and its current HTTP 400 counter is shown above. Zero or few completed rows with tool messages indicates a model tool-use adherence issue rather than a missing tool registration; both parser and tool smoke tests pass.
 
