@@ -104,11 +104,11 @@ def read_vtc_score(path: Path) -> dict[str, float]:
     return result
 
 
-def result_jsonl_status(root: Path, model: str) -> str:
+def result_jsonl_status(root: Path, model: str) -> tuple[int, int]:
     model_dir = root / model
     files = sorted(model_dir.glob("results_*.jsonl")) if model_dir.is_dir() else []
     if not files:
-        return "0/680"
+        return 0, 0
     rows = 0
     errors = 0
     with files[-1].open(encoding="utf-8", errors="replace") as handle:
@@ -122,8 +122,7 @@ def result_jsonl_status(root: Path, model: str) -> str:
                     errors += 1
             except json.JSONDecodeError:
                 errors += 1
-    suffix = "" if errors == 0 else f", errors={errors}"
-    return f"{rows}/680{suffix}"
+    return rows - errors, errors
 
 
 def result_jsonl_runtime_stats(root: Path, model: str) -> dict[str, int]:
@@ -258,11 +257,15 @@ def main() -> None:
     interface_score_path = eval_root / interface_folder / f"{model}_VTC_Bench_score.csv"
     code_scores = read_vtc_score(code_score_path)
     interface_scores = read_vtc_score(interface_score_path)
-    code_inference = result_jsonl_status(
+    code_valid, code_errors = result_jsonl_status(
         vtc / "runs" / "vtc_vision_opd_4b_step65_code", model
     )
-    interface_inference = result_jsonl_status(
+    interface_valid, interface_errors = result_jsonl_status(
         vtc / "runs" / "vtc_vision_opd_4b_step65_interface", model
+    )
+    code_inference = f"{code_valid}/680" + (f", errors={code_errors}" if code_errors else "")
+    interface_inference = f"{interface_valid}/680" + (
+        f", errors={interface_errors}" if interface_errors else ""
     )
     code_runtime = result_jsonl_runtime_stats(
         vtc / "runs" / "vtc_vision_opd_4b_step65_code", model
@@ -282,10 +285,10 @@ def main() -> None:
     baseline_complete = sum(score is not None for score in baseline_scores)
     opd_complete = sum(score is not None for score in opd_scores)
 
-    def track_state(inference: str, scores: dict[str, float]) -> str:
+    def track_state(valid_rows: int, scores: dict[str, float]) -> str:
         if scores.get("Overall") is not None:
             return "complete"
-        return "in progress" if not inference.startswith("0/") else "pending"
+        return "in progress, scoring pending" if valid_rows else "pending"
 
     code_config = vtc / "eval" / "eval_config" / "vision_opd_qwen35_4b_code.yaml"
     interface_config = vtc / "eval" / "eval_config" / "vision_opd_qwen35_4b_interface.yaml"
@@ -312,9 +315,12 @@ def main() -> None:
         f"{'complete' if baseline_complete == 10 else 'in progress'} |",
         f"| Official OPD-4B | {opd_complete}/10 benchmarks | "
         f"{'complete' if opd_complete == 10 else 'in progress'} |",
-        f"| VTC code-driven | {code_inference} | {track_state(code_inference, code_scores)} |",
+        f"| VTC code-driven | {code_inference} | {track_state(code_valid, code_scores)} |",
         f"| VTC interface-driven | {interface_inference} | "
-        f"{track_state(interface_inference, interface_scores)} |",
+        f"{track_state(interface_valid, interface_scores)} |",
+        f"| VTC combined | {code_valid + interface_valid}/1360 "
+        f"({100.0 * (code_valid + interface_valid) / 1360:.2f}%) | "
+        f"{'complete' if code_scores.get('Overall') is not None and interface_scores.get('Overall') is not None else 'in progress, scoring pending'} |",
         "",
         "## Official Benchmark Alignment",
         "",

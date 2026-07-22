@@ -1,6 +1,6 @@
 # Vision-OPD-4B Official and VTC-Bench Reproduction
 
-Generated: 2026-07-22T05:40:47.524927+00:00
+Generated: 2026-07-22T05:45:33.601553+00:00
 
 ## Progress Snapshot
 
@@ -8,8 +8,9 @@ Generated: 2026-07-22T05:40:47.524927+00:00
 | --- | ---: | --- |
 | Official baseline 4B | 10/10 benchmarks | complete |
 | Official OPD-4B | 10/10 benchmarks | complete |
-| VTC code-driven | 580/680 | in progress |
-| VTC interface-driven | 654/680 | in progress |
+| VTC code-driven | 583/680 | in progress, scoring pending |
+| VTC interface-driven | 656/680 | in progress, scoring pending |
+| VTC combined | 1239/1360 (91.10%) | in progress, scoring pending |
 
 ## Official Benchmark Alignment
 
@@ -77,8 +78,8 @@ The final local column uses the user-selected one-epoch `released-b96-r8-gradacc
 
 | Track | Inference | Overall |
 | --- | ---: | ---: |
-| Code-driven | 580/680 | pending |
-| Interface-driven | 654/680 | pending |
+| Code-driven | 583/680 | pending |
+| Interface-driven | 656/680 | pending |
 
 ### Runtime Diagnostics
 
@@ -86,14 +87,14 @@ These counters are cumulative snapshots from the active documented run. They dia
 
 | Track | Completed rows | >10k chars | >100k chars | Max chars | Rows with tool messages |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Code-driven | 580 | 11 | 3 | 199549 | 0 |
-| Interface-driven | 654 | 3 | 1 | 118667 | 0 |
+| Code-driven | 583 | 11 | 3 | 199549 | 0 |
+| Interface-driven | 656 | 3 | 1 | 118667 | 0 |
 
 | Cumulative pipeline signal | Count |
 | --- | ---: |
-| Successful vLLM requests | 3448 |
+| Successful vLLM requests | 3473 |
 | HTTP 400 context-length rejections | 0 |
-| Network/read timeout retry messages | 798 |
+| Network/read timeout retry messages | 799 |
 | Invalid-answer messages | 570 |
 | Task-timeout messages | 318 |
 
