@@ -39,5 +39,11 @@ tools and the fourth uses the upstream direct-answer fallback. Remove this
 export to reproduce the unmodified 20-call protocol; the final report records
 that the completed local run mixes the original prefix with this tail policy.
 
+The resumed tail also sets `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. This keeps the
+configured `max_tokens=40960` unchanged and stops only after the required
+`</answer>` delimiter has been generated. The compatibility patch restores the
+delimiter omitted by OpenAI-compatible stop handling, so downstream extraction
+sees the same completed answer while avoiding post-answer repetition.
+
 Dataset images, TSV files, run directories, and VLMEvalKit outputs are not
 vendored in this repository.

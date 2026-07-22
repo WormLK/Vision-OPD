@@ -187,6 +187,7 @@ def validate_vtc_runner(path: Path) -> None:
         "--max-model-len 131072",
         "--default-chat-template-kwargs '{\"enable_thinking\":true}'",
         "scripts/smoke_qwen35_tool_parser.py --model-path",
+        'QWEN_AGENT_STOP_ON_FINAL_ANSWER="1"',
     )
     missing = [value for value in required if value not in text]
     if missing:

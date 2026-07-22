@@ -1,5 +1,5 @@
 diff --git a/eval/qwen_agent/agents/fncall_agent.py b/eval/qwen_agent/agents/fncall_agent.py
-index 7f1111f..5a437ef 100644
+index 7f1111f..45b01d7 100644
 --- a/eval/qwen_agent/agents/fncall_agent.py
 +++ b/eval/qwen_agent/agents/fncall_agent.py
 @@ -13,18 +13,62 @@
@@ -67,19 +67,22 @@ index 7f1111f..5a437ef 100644
  
  
  class FnCallAgent(Agent):
-@@ -78,7 +122,10 @@ class FnCallAgent(Agent):
+@@ -78,7 +122,11 @@ class FnCallAgent(Agent):
          response = []
          num_retry = 5
          consecutive_no_tool_count = 0  # Track consecutive rounds without tool usage
 +        last_no_tool_text = None
 +        repeated_no_tool_limit = int(os.getenv('QWEN_AGENT_REPEATED_NO_TOOL_LIMIT', '0'))
++        stop_on_final_answer = os.getenv('QWEN_AGENT_STOP_ON_FINAL_ANSWER', '0').lower() in ('1', 'true', 'yes')
          round_count = 0  # Debug: Count the rounds
 +        text_tool_call_mode = os.getenv('QWEN_AGENT_TEXT_TOOL_CALL_MODE', 'false').lower() in ('1', 'true', 'yes')
          while True and num_llm_calls_available > 0 and round_count < MAX_LLM_CALL_PER_RUN + 10:
              round_count += 1
              # print("ROUND_COUNT:", round_count)
-@@ -90,7 +137,7 @@ class FnCallAgent(Agent):
+@@ -90,7 +138,9 @@ class FnCallAgent(Agent):
                  extra_generate_cfg['seed'] = kwargs['seed']
++            if stop_on_final_answer:
++                extra_generate_cfg['stop'] = ['</answer>']
              
              # 如果是 num_llm_calls_available == 0 的时候，不允许模型使用tool了 ，即 call模型的时候不传输tool
 -            if num_llm_calls_available == 0:
@@ -87,7 +90,21 @@ index 7f1111f..5a437ef 100644
                  output_stream = self._call_llm(messages=messages,
                                              functions=[],
                                              extra_generate_cfg=extra_generate_cfg)
-@@ -146,7 +193,19 @@ class FnCallAgent(Agent):
+@@ -104,5 +154,13 @@ class FnCallAgent(Agent):
+                 if output:
+                     yield response + output
++
++            # OpenAI-compatible APIs omit the matched stop string. Restore the
++            # protocol delimiter so downstream VTC answer extraction is unchanged.
++            if stop_on_final_answer:
++                for out in output:
++                    if isinstance(out.content, str) and '<answer>' in out.content and '</answer>' not in out.content:
++                        out.content += '</answer>'
++
+             # 检查是否需要重试：当最后一轮对话时，如果输出中不包含答案
+             should_retry = False
+             if num_llm_calls_available == 0 and num_retry > 0:
+@@ -146,7 +203,19 @@ class FnCallAgent(Agent):
                  for out in output:
                      use_tool, tool_name, tool_args, _ = self._detect_tool(out)
                      if use_tool:
@@ -344,4 +361,3 @@ index 7f1111f..5a437ef 100644
      def _call_tool(self, tool_name: str, tool_args: Union[str, dict] = '{}', **kwargs) -> str:
          
          if tool_name not in self.function_map:
-
