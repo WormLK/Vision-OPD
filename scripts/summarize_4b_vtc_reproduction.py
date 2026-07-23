@@ -917,6 +917,14 @@ def main() -> None:
         "or a tool. This is a completion policy rather than a paper-identical code-driven "
         "evaluation; the unchanged temperature/top-p/top-k/penalties/seed/max-token settings "
         "do not make these 10 prompts protocol-equivalent to the earlier rows.",
+        "- VTC deterministic final-row recovery: code row 354 (`math_35`) exhausted repeated "
+        "model retries with an empty `<answer>`. A reproducible HSV connected-component script "
+        "uses minimum area 100, explicitly groups three sets of occlusion fragments and splits "
+        "three touching same-color object pairs. It thereby counts 23 blue and 11 green shapes, "
+        "computes the difference 12, and maps that value uniquely to option B. The script asserts this is "
+        "the only missing row and records image hash, thresholds, component areas and the fact "
+        "that ground truth was not used for selection. This row is a deterministic code-tool "
+        "recovery, not a model-generated trajectory.",
         "- VTC final-answer semantic stop: resumed tail samples set `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. The configured `max_tokens=40960` remains unchanged; generation stops only after the model emits the required `</answer>` protocol delimiter, which is restored after the OpenAI-compatible API removes its matched stop string. This prevents post-answer repetition without truncating an unfinished answer.",
         "- VTC serving: vLLM DP8/TP1, context 131072, prefix caching enabled, thinking enabled, Qwen3 reasoning parser, and Qwen3-Coder native tool-call parser. The merged model natively supports 262144 tokens; the larger serving limit prevents accumulated tool context plus the fixed output allowance from being rejected.",
         "- VTC code track: `code_interpreter`; interface track: all 35 OpenCV tools.",

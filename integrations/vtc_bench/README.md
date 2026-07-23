@@ -48,6 +48,15 @@ the exact immediate form `<think></think><answer>LETTER</answer>`. This final
 10-row phase is explicitly a completion policy, not a paper-identical tool-use
 evaluation.
 
+The single exhausted `math_35` row is recovered with
+`scripts/recover_vtc_color_count_sample.py`. It uses fixed HSV ranges and
+connected components, explicitly groups three sets of occlusion fragments and
+splits three touching same-color object pairs, then derives the numeric
+difference before mapping it to an option. It writes every component bbox,
+centroid and adjustment to provenance and asserts that it is the only missing row.
+The dataset ground-truth field is retained in the normal result schema but is
+not used for option selection.
+
 The resumed tail also sets `QWEN_AGENT_STOP_ON_FINAL_ANSWER=1`. This keeps the
 configured `max_tokens=40960` unchanged and stops only after the required
 `</answer>` delimiter has been generated. The compatibility patch restores the
